@@ -4,6 +4,13 @@ Chat interfaces as SwiftUI packages, consumed by Visor
 (github.com/AttilaTheFun/visor) and other apps. Read `README.md` first for
 what the pieces are.
 
+## Changes
+
+This repo is public. Every change to `main` goes through a pull request:
+`main` is protected, direct pushes are rejected, and the CI check (the
+tests) must pass before a pull request can merge. Keep each pull request
+to one focused change, and say in it how the change was verified.
+
 ## Layout
 
 - `Package.swift` at the root: the four products (InboxUI, MessagesUI,
