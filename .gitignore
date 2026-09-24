@@ -1,0 +1,7 @@
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+# Generated: xcodegen generate --spec Examples/project.yml
+*.xcodeproj
