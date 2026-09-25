@@ -129,12 +129,18 @@ public struct TranscriptView: View {
                     // just-sent message, which are overlaid after the reply.
                     // A run of tool calls folds into one row that opens a
                     // sheet; everything else is its own row.
-                    ForEach(TranscriptBlock.blocks(messages.filter { !$0.pending && !$0.sending })) { block in
+                    // The replies still streaming are rows of the same list,
+                    // after the record, so a reply's finished row takes its
+                    // stream's place instead of the stream leaving the
+                    // footer and a new row arriving above it.
+                    ForEach(rows) { block in
                         switch block {
                         case .message(let message):
                             TranscriptRow(message: message).transcriptCell().id(message.id)
                         case .calls(let run):
                             ToolCallsRow(run: run).transcriptCell().id(block.id)
+                        case .stream(let stream):
+                            AssistantBubble(text: stream.text, streaming: true).transcriptCell().id(stream.id)
                         }
                     }
                     // The footer: everything that is not the record — the
@@ -142,7 +148,7 @@ public struct TranscriptView: View {
                     // what the turn is doing, an error — and the room above
                     // the composer. One cell, always present, so the thread
                     // has one place to scroll to and the gap scrolls with it.
-                    EphemeralFooter(streams: streams, pending: messages.filter(\.pending), sending: messages.filter(\.sending),
+                    EphemeralFooter(pending: messages.filter(\.pending), sending: messages.filter(\.sending),
                                     status: status, activity: activity, error: error)
                         .transcriptCell()
                         .id("bottom")
@@ -191,6 +197,13 @@ public struct TranscriptView: View {
         }
     }
 
+    /// The record's blocks, then the streams it does not carry yet.
+    private var rows: [TranscriptBlock] {
+        let committed = messages.filter { !$0.pending && !$0.sending }
+        let carried = Set(committed.map(\.id))
+        return TranscriptBlock.blocks(committed) + streams.filter { !carried.contains($0.id) }.map(TranscriptBlock.stream)
+    }
+
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(emptyTitle).font(.title3.bold())
@@ -211,11 +224,17 @@ public struct TranscriptView: View {
 public enum TranscriptBlock: Identifiable {
     case message(TranscriptMessage)
     case calls([TranscriptMessage])
+    /// A reply still streaming, under the id its finished message will
+    /// have: when the record carries that message, the block becomes a
+    /// `.message` with the same id in the same place, and the row changes
+    /// rather than one going and another arriving.
+    case stream(StreamedMessage)
 
     public var id: String {
         switch self {
         case .message(let message): message.id
         case .calls(let run): "calls-" + (run.first?.id ?? "")
+        case .stream(let stream): stream.id
         }
     }
 
@@ -568,7 +587,6 @@ public struct ActivityRow: View {
 
 /// Under the record: the ephemeral state, and the gap above the composer.
 struct EphemeralFooter: View {
-    let streams: [StreamedMessage]
     let pending: [TranscriptMessage]
     let sending: [TranscriptMessage]
     let status: [ActivityItem]
@@ -577,11 +595,6 @@ struct EphemeralFooter: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // The reply as it streams, one row per message id, kept until
-            // the record carries it.
-            ForEach(streams) { stream in
-                AssistantBubble(text: stream.text, streaming: true)
-            }
             // What is waiting goes under what is happening: the turn in
             // flight is the present, the queue is next.
             ForEach(pending) { message in TranscriptRow(message: message) }
