@@ -191,9 +191,13 @@ public struct TranscriptView: View {
             // and a scroll made in this one is measured against the old
             // — short by the growth, the gap cell left under the box.
             .onChange(of: bottomInset) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
-            .onChange(of: streams) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
-            .onChange(of: activity) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
-            .onChange(of: status) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
+            // A reply starting is a new row, measured in the next layout
+            // pass; scrolled to in this one, the bottom is short by the
+            // row and the reply arrives under the composer. So these wait
+            // for the layout, as the composer's growth does.
+            .onChange(of: streams) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: activity) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: status) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
         }
     }
 
