@@ -108,15 +108,7 @@ public struct TranscriptView: View {
     @ObservedObject private var openedCalls = ToolCallsOpen.shared
 
     public var body: some View {
-        #if canImport(UIKit) || canImport(AppKit)
-        // Scrolled to the content's bottom edge, which the scroll view
-        // knows however many rows it has measured; a row's id is found at
-        // an estimated height until the row has been laid out, and a scroll
-        // to it lands short, then corrects — a jump.
-        EdgeScrolled { toBottom in transcript(toBottom) }
-        #else
         ScrollViewReader { proxy in transcript { proxy.scrollTo("bottom", anchor: .bottom) } }
-        #endif
     }
 
     /// The transcript's list, given how to scroll it to its bottom.
@@ -170,10 +162,11 @@ public struct TranscriptView: View {
         }
         .listStyle(.plain)
         .noMinimumRowHeight()
-        // When the list itself changes size — the keyboard coming or
-        // going, the composer growing — its bottom stays where it is,
-        // moving with the change, rather than the rows keeping their
-        // offset and jumping once the change is done.
+        // When the list or its content changes size — the keyboard
+        // coming or going, the composer growing, a reply streaming —
+        // its bottom stays where it is, moving with the change, rather
+        // than the rows keeping their offset and jumping once the
+        // change is done.
         .bottomAnchoredOnResize()
         // A row arriving or going — a message sent, a reply landing —
         // slides in as a list's rows do; words streaming into a row
@@ -213,13 +206,10 @@ public struct TranscriptView: View {
         // and a scroll made in this one is measured against the old
         // — short by the growth, the gap cell left under the box.
         .onChange(of: bottomInset) { _ in afterLayout { toBottom() } }
-        // A reply starting is a new row, measured in the next layout
-        // pass; scrolled to in this one, the bottom is short by the
-        // row and the reply arrives under the composer. So these wait
-        // for the layout, as the composer's growth does.
-        .onChange(of: streams) { _ in afterLayout { toBottom() } }
-        .onChange(of: activity) { _ in afterLayout { toBottom() } }
-        .onChange(of: status) { _ in afterLayout { toBottom() } }
+        // A reply streaming in, the status line changing: the content
+        // grows under a bottom the list keeps anchored, so nothing
+        // scrolls. A scroll to the footer here is made against a new
+        // row's estimated height, lands short, and corrects — a jump.
     }
 
     /// The record's blocks, then the streams it does not carry yet.
@@ -987,17 +977,4 @@ func afterLayout(_ action: @escaping @MainActor () -> Void) {
         action()
     }
     #endif
-}
-
-/// A scroll view kept by its position: the content gets the way to scroll
-/// to its bottom edge, and opens there.
-struct EdgeScrolled<Content: View>: View {
-    @State private var position = ScrollPosition(edge: .bottom)
-    let content: (@escaping () -> Void) -> Content
-
-    init(@ViewBuilder content: @escaping (@escaping () -> Void) -> Content) { self.content = content }
-
-    var body: some View {
-        content({ position.scrollTo(edge: .bottom) }).scrollPosition($position)
-    }
 }
