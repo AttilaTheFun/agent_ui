@@ -42,7 +42,7 @@ wider), and AgentExample (`AgentView` on a fake agent). See Examples/README.md.
 
 ## Platforms
 
-iOS 17 and macOS 14 are built and tested here. tvOS and watchOS are not
+iOS 18 and macOS 15 are built and tested here. tvOS and watchOS are not
 supported: the layout leans on NavigationSplitView, inspectors and
 keyboard-driven composers that do not exist there. Non-Apple platforms
 build when a `SwiftUI` module of the same API is on the search path.

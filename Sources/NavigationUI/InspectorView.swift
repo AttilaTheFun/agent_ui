@@ -21,20 +21,10 @@ public struct InspectorView<Content: View>: View {
             content
                 .toolbar {
                     #if canImport(AppKit)
-                    if #available(macOS 15, *) {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Close", systemImage: "xmark", action: close)
-                        }
-                        .hidden(!isPresented)
-                    } else {
-                        ToolbarItem(placement: .cancellationAction) {
-                            if isPresented {
-                                Button("Close", systemImage: "xmark", action: close)
-                            } else {
-                                Color.clear.frame(width: 0, height: 0)
-                            }
-                        }
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", systemImage: "xmark", action: close)
                     }
+                    .hidden(!isPresented)
                     #else
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close", systemImage: "xmark", action: close)

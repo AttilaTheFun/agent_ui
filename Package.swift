@@ -10,7 +10,7 @@ import PackageDescription
 
 let package = Package(
     name: "AgentUI",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.iOS("18.0"), .macOS("15.0")],
     products: [
         // The inbox: `InboxView`, `InboxCell` (Messages.app's conversation list).
         .library(name: "InboxUI", targets: ["InboxUI"]),

@@ -109,15 +109,11 @@ public struct TranscriptView: View {
 
     public var body: some View {
         #if canImport(UIKit) || canImport(AppKit)
-        if #available(iOS 18, macOS 15, *) {
-            // Scrolled to the content's bottom edge, which the scroll view
-            // knows however many rows it has measured; a row's id is found
-            // at an estimated height until the row has been laid out, and a
-            // scroll to it lands short, then corrects — a jump.
-            EdgeScrolled { toBottom in transcript(toBottom) }
-        } else {
-            ScrollViewReader { proxy in transcript { proxy.scrollTo("bottom", anchor: .bottom) } }
-        }
+        // Scrolled to the content's bottom edge, which the scroll view
+        // knows however many rows it has measured; a row's id is found at
+        // an estimated height until the row has been laid out, and a scroll
+        // to it lands short, then corrects — a jump.
+        EdgeScrolled { toBottom in transcript(toBottom) }
         #else
         ScrollViewReader { proxy in transcript { proxy.scrollTo("bottom", anchor: .bottom) } }
         #endif
@@ -738,15 +734,11 @@ extension View {
         #endif
     }
 
-    /// The bottom stays put when the scroll view changes size (iOS 18,
-    /// macOS 15); earlier systems and the portable SwiftUI keep the offset.
+    /// The bottom stays put when the scroll view changes size; the
+    /// portable SwiftUI keeps the offset.
     @ViewBuilder func bottomAnchoredOnResize() -> some View {
         #if canImport(UIKit) || canImport(AppKit)
-        if #available(iOS 18, macOS 15, *) {
-            self.defaultScrollAnchor(.bottom, for: .sizeChanges)
-        } else {
-            self
-        }
+        self.defaultScrollAnchor(.bottom, for: .sizeChanges)
         #else
         self
         #endif
@@ -997,9 +989,8 @@ func afterLayout(_ action: @escaping @MainActor () -> Void) {
     #endif
 }
 
-/// A scroll view kept by its position (iOS 18, macOS 15): the content
-/// gets the way to scroll to its bottom edge, and opens there.
-@available(iOS 18, macOS 15, *)
+/// A scroll view kept by its position: the content gets the way to scroll
+/// to its bottom edge, and opens there.
 struct EdgeScrolled<Content: View>: View {
     @State private var position = ScrollPosition(edge: .bottom)
     let content: (@escaping () -> Void) -> Content
