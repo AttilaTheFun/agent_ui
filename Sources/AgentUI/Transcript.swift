@@ -186,7 +186,12 @@ public struct TranscriptView: View {
             .keyboardTracking { proxy.scrollTo("bottom", anchor: .bottom) }
             .onChange(of: messages.count) { _ in
                 if populated {
-                    withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+                    // After the layout, as the stream's scroll: a row
+                    // arriving (a message sent landing on the record) is
+                    // measured in the next pass, and a scroll made in this
+                    // one stops a row short, the last message under the
+                    // composer.
+                    afterLayout { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
                 } else {
                     proxy.scrollTo("bottom", anchor: .bottom)
                     populated = !messages.isEmpty
