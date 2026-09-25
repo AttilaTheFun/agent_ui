@@ -147,12 +147,12 @@ public struct TranscriptView: View {
                         AssistantBubble(text: stream.text, streaming: true).transcriptCell().id(stream.id)
                     }
                 }
-                // The footer: everything that is not the record — the
-                // reply as it streams, the queue, a message on its way,
-                // what the turn is doing, an error — and the room above
-                // the composer. One cell, always present, so the thread
-                // has one place to scroll to and the gap scrolls with it.
-                EphemeralFooter(pending: messages.filter(\.pending), sending: messages.filter(\.sending),
+                // The footer: everything that is not the thread — the
+                // queue, what the turn is doing, an error — and the room
+                // above the composer. One cell, always present, so the
+                // thread has one place to scroll to and the gap scrolls
+                // with it.
+                EphemeralFooter(pending: messages.filter(\.pending),
                                 status: status, activity: activity, error: error)
                     .transcriptCell()
                     .id("bottom")
@@ -212,9 +212,13 @@ public struct TranscriptView: View {
         // row's estimated height, lands short, and corrects — a jump.
     }
 
-    /// The record's blocks, then the streams it does not carry yet.
+    /// The record's blocks, then the streams it does not carry yet. A
+    /// message just sent is a row of the thread from the start, in a
+    /// sending state: when the record carries it under the same id, the
+    /// row changes in place rather than moving out of the footer — a new
+    /// row the list has not measured, and a scroll that lands short.
     private var rows: [TranscriptBlock] {
-        let committed = messages.filter { !$0.pending && !$0.sending }
+        let committed = messages.filter { !$0.pending }
         let carried = Set(committed.map(\.id))
         return TranscriptBlock.blocks(committed) + streams.filter { !carried.contains($0.id) }.map(TranscriptBlock.stream)
     }
@@ -603,7 +607,6 @@ public struct ActivityRow: View {
 /// Under the record: the ephemeral state, and the gap above the composer.
 struct EphemeralFooter: View {
     let pending: [TranscriptMessage]
-    let sending: [TranscriptMessage]
     let status: [ActivityItem]
     let activity: String?
     let error: String?
@@ -613,9 +616,6 @@ struct EphemeralFooter: View {
             // What is waiting goes under what is happening: the turn in
             // flight is the present, the queue is next.
             ForEach(pending) { message in TranscriptRow(message: message) }
-            // A message just sent from here is the most recent thing in
-            // the thread, in a sending state until the record carries it.
-            ForEach(sending) { message in TranscriptRow(message: message) }
             if !status.isEmpty || activity != nil {
                 ActivityList(items: status, current: activity)
                     .padding(.vertical, 6)
