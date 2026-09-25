@@ -58,11 +58,25 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// when it is focused, so the message stayed in the box and the box
     /// stayed tall after it had gone. A fresh identity reads the binding
     /// again; focus is put straight back so the keyboard does not flinch.
+    ///
+    /// On a phone the keyboard goes with its own animation, as it does
+    /// after sending in Claude or ChatGPT: renewing a focused field tears
+    /// the keyboard down at once, so the field is let go first and renewed
+    /// once the keyboard is away. On a Mac there is no keyboard to animate
+    /// and the field keeps focus, to type the next message.
     private func fire(_ action: () -> Void) {
         action()
         guard draft.isEmpty else { return }
+        #if os(iOS)
+        focused = false
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            fieldGeneration &+= 1
+        }
+        #else
         fieldGeneration &+= 1
         focused = true
+        #endif
     }
 
     public var body: some View {
