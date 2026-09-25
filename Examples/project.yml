@@ -6,8 +6,8 @@ name: AgentUIExamples
 options:
   bundleIdPrefix: dev.agent-ui
   deploymentTarget:
-    iOS: "17.0"
-    macOS: "14.0"
+    iOS: "18.0"
+    macOS: "15.0"
   xcodeVersion: "16.0"
   createIntermediateGroups: true
 packages:

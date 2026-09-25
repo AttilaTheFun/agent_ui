@@ -32,7 +32,7 @@ to one focused change, and say in it how the change was verified.
 - Every target imports SwiftUI and nothing else. No app code, no Bazel, no third-party dependencies. It is built here against Apple's
   SwiftUI and elsewhere (wasm, Android, Linux, Windows) against a
   reimplementation of the same API, so:
-  - Use only SwiftUI API that exists on iOS 17 / macOS 14, behind
+  - Use only SwiftUI API that exists on iOS 18 / macOS 15, behind
     `#available` for anything newer (the 26 glass styles are the pattern),
     and behind `canImport(UIKit) || canImport(AppKit)` when the other
     SwiftUI lacks it.
