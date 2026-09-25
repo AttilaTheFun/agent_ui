@@ -31,15 +31,9 @@ public struct TranscriptMessage: Identifiable, Equatable {
     /// its final size from the first frame instead of reshaping itself
     /// as each picture lands. Nil where unknown.
     public var imageSizes: [CGSize?]
-    /// Said, but not handed over yet: it waits for the turn in flight to
-    /// finish. Drawn faintly, and named as waiting.
-    public var pending: Bool
-    /// Sent from here and not yet on the record: shown at once where it
-    /// will land, marked, until the transcript's own row replaces it.
-    public var sending: Bool
 
     public init(id: String, role: Role, text: String, activities: [String] = [], toolName: String? = nil,
-                imageURLs: [String] = [], imageSizes: [CGSize?] = [], pending: Bool = false, sending: Bool = false) {
+                imageURLs: [String] = [], imageSizes: [CGSize?] = []) {
         self.id = id
         self.role = role
         self.text = text
@@ -47,8 +41,6 @@ public struct TranscriptMessage: Identifiable, Equatable {
         self.toolName = toolName
         self.imageURLs = imageURLs
         self.imageSizes = imageSizes
-        self.pending = pending
-        self.sending = sending
     }
 
     /// The known size of the image at `index`, if any.
@@ -147,13 +139,11 @@ public struct TranscriptView: View {
                         AssistantBubble(text: stream.text, streaming: true).transcriptCell().id(stream.id)
                     }
                 }
-                // The footer: everything that is not the thread — the
-                // queue, what the turn is doing, an error — and the room
-                // above the composer. One cell, always present, so the
-                // thread has one place to scroll to and the gap scrolls
-                // with it.
-                EphemeralFooter(pending: messages.filter(\.pending),
-                                status: status, activity: activity, error: error)
+                // The footer: what is not the record — what the turn is
+                // doing, an error — and the room above the composer. One
+                // cell, always present, so the thread has one place to
+                // scroll to and the gap scrolls with it.
+                EphemeralFooter(status: status, activity: activity, error: error)
                     .transcriptCell()
                     .id("bottom")
             }
@@ -212,15 +202,11 @@ public struct TranscriptView: View {
         // row's estimated height, lands short, and corrects — a jump.
     }
 
-    /// The record's blocks, then the streams it does not carry yet. A
-    /// message just sent is a row of the thread from the start, in a
-    /// sending state: when the record carries it under the same id, the
-    /// row changes in place rather than moving out of the footer — a new
-    /// row the list has not measured, and a scroll that lands short.
+    /// The record's blocks, then the streams it does not carry yet. What
+    /// is said and not on the record yet is the composer's to show.
     private var rows: [TranscriptBlock] {
-        let committed = messages.filter { !$0.pending }
-        let carried = Set(committed.map(\.id))
-        return TranscriptBlock.blocks(committed) + streams.filter { !carried.contains($0.id) }.map(TranscriptBlock.stream)
+        let carried = Set(messages.map(\.id))
+        return TranscriptBlock.blocks(messages) + streams.filter { !carried.contains($0.id) }.map(TranscriptBlock.stream)
     }
 
     private var emptyState: some View {
@@ -414,19 +400,9 @@ public struct TranscriptRow: View {
                     if !message.text.isEmpty {
                         Text(message.text)
                             .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(Color.secondary.opacity(message.pending ? 0.10 : 0.18))
+                            .background(Color.secondary.opacity(0.18))
                             .cornerRadius(16)
-                            .opacity(message.pending ? 0.6 : 1)
                             .textSelection(.enabled)
-                    }
-                    if message.pending {
-                        Text("Queued — sends when this turn ends")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    } else if message.sending {
-                        Text("Sending…")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -606,16 +582,12 @@ public struct ActivityRow: View {
 
 /// Under the record: the ephemeral state, and the gap above the composer.
 struct EphemeralFooter: View {
-    let pending: [TranscriptMessage]
     let status: [ActivityItem]
     let activity: String?
     let error: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // What is waiting goes under what is happening: the turn in
-            // flight is the present, the queue is next.
-            ForEach(pending) { message in TranscriptRow(message: message) }
             if !status.isEmpty || activity != nil {
                 ActivityList(items: status, current: activity)
                     .padding(.vertical, 6)
@@ -628,10 +600,11 @@ struct EphemeralFooter: View {
     }
 }
 
-/// What the turn is doing: each item with its kind's mark, a spinner
-/// while it runs and a check once it is done; the task list as a list.
-/// A current label not already an item (the road to the computer, say)
-/// is shown live after them.
+/// What the turn is doing, in one line: the latest thing still running,
+/// else the task under way, else the current label (thinking, the road to
+/// the computer). One line whatever the turn does, so the footer keeps its
+/// height as calls come and go; the calls themselves are the record's,
+/// grouped there.
 public struct ActivityList: View {
     let items: [ActivityItem]
     let current: String?
@@ -642,18 +615,20 @@ public struct ActivityList: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(items) { item in
-                if item.kind == .tasks {
-                    TaskListRows(tasks: item.tasks)
-                } else {
-                    ActivityRow(label: item.label, running: item.running, symbol: Self.symbol(for: item.kind))
-                }
-            }
-            if let current, !items.contains(where: { $0.label == current }) {
-                ActivityRow(label: current, running: true)
-            }
+        if let line {
+            ActivityRow(label: line.label, running: true, symbol: line.symbol)
         }
+    }
+
+    private var line: (label: String, symbol: String?)? {
+        if let item = items.last(where: { $0.running && $0.kind != .tasks }) {
+            return (item.label, Self.symbol(for: item.kind))
+        }
+        if let tasks = items.last(where: { $0.kind == .tasks })?.tasks,
+           let index = tasks.firstIndex(where: { $0.state == .active }) {
+            return ("\(tasks[index].title) (\(index + 1) of \(tasks.count))", Self.symbol(for: .tasks))
+        }
+        return current.map { ($0, nil) }
     }
 
     static func symbol(for kind: ActivityItem.Kind) -> String {
@@ -664,37 +639,6 @@ public struct ActivityList: View {
         case .subagent: "person.2"
         case .tool: "wrench.and.screwdriver"
         case .tasks: "checklist"
-        }
-    }
-}
-
-/// The task list as last written: what is done, what is under way, what
-/// waits.
-struct TaskListRows: View {
-    let tasks: [ActivityTask]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(Array(tasks.enumerated()), id: \.offset) { _, task in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: mark(task.state))
-                        .foregroundColor(task.state == .done ? .green : .secondary)
-                        .font(.footnote)
-                    Text(task.title)
-                        .font(.footnote)
-                        .foregroundColor(task.state == .active ? .primary : .secondary)
-                        .strikethrough(task.state == .done, color: .secondary)
-                }
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func mark(_ state: ActivityTask.State) -> String {
-        switch state {
-        case .pending: "circle"
-        case .active: "circle.dotted.circle"
-        case .done: "checkmark.circle.fill"
         }
     }
 }

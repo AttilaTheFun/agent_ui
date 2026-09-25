@@ -27,6 +27,10 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// Interrupt the turn and say what is written now; nil leaves a busy
     /// composer with only Stop.
     let steer: (() -> Void)?
+    /// Said and not on the record yet: shown in the composer.
+    let outgoing: [OutgoingMessage]
+    /// Takes a queued message back into the field.
+    let edit: ((OutgoingMessage) -> Void)?
     let controls: () -> Controls
     let attachments: () -> Attachments
 
@@ -36,11 +40,14 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     ///   - error: the last failure, under the transcript.
     ///   - emptyTitle/emptyBody/emptyFootnote: the empty state.
     ///   - busy: the agent is working; the composer offers Stop.
+    ///   - outgoing: messages said and not on the record yet, shown in the composer.
+    ///   - edit: takes a queued message back into the field.
     public init(messages: [TranscriptMessage], streams: [StreamedMessage] = [], activity: String? = nil, status: [ActivityItem] = [],
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String,
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
                 busy: Bool, attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
-                steer: (() -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
+                steer: (() -> Void)? = nil, outgoing: [OutgoingMessage] = [],
+                edit: ((OutgoingMessage) -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.loadEarlier = loadEarlier
@@ -59,6 +66,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.send = send
         self.stop = stop
         self.steer = steer
+        self.outgoing = outgoing
+        self.edit = edit
         self.controls = controls
         self.attachments = attachments
     }
@@ -74,7 +83,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: send, stop: stop, steer: steer,
-                              controls: controls, attachments: attachments)
+                              outgoing: outgoing, edit: edit, controls: controls, attachments: attachments)
                     .background(GeometryReader { geometry in
                         Color.clear
                             .onAppear { composerHeight = geometry.size.height }

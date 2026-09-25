@@ -23,6 +23,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// Say this now, ahead of the turn in flight: the app interrupts and
     /// hands it over. Without one, a busy composer only stops.
     let steer: (() -> Void)?
+    /// What has been said and is not on the record yet, over the field.
+    let outgoing: [OutgoingMessage]
+    /// Takes a queued message back into the field; nil leaves it be.
+    let edit: ((OutgoingMessage) -> Void)?
     let controls: Controls
     let attachments: Attachments
     @FocusState private var focused: Bool
@@ -34,11 +38,14 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
     ///   - attachmentCount: how many attachments `attachments` shows.
+    ///   - outgoing: messages said and not on the record yet, shown over the field.
+    ///   - edit: takes a queued message back into the field.
     ///   - controls: the buttons and pills beside the send button.
     ///   - attachments: the thumbnails above the field.
     public init(draft: Binding<String>, placeholder: String = "Message the agent…", busy: Bool,
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
-                steer: (() -> Void)? = nil,
+                steer: (() -> Void)? = nil, outgoing: [OutgoingMessage] = [],
+                edit: ((OutgoingMessage) -> Void)? = nil,
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
         self._draft = draft
         self.placeholder = placeholder
@@ -47,6 +54,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         self.send = send
         self.stop = stop
         self.steer = steer
+        self.outgoing = outgoing
+        self.edit = edit
         self.controls = controls()
         self.attachments = attachments()
     }
@@ -112,6 +121,18 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // Spacing by hand: the message keeps `textInset` from the box
             // and from the controls, while the controls keep `gap`.
             VStack(alignment: .leading, spacing: 0) {
+                if !outgoing.isEmpty {
+                    OutgoingList(messages: outgoing, edit: edit.map { edit in
+                        // The words come back into the field, which is
+                        // renewed to show them and focused to edit them.
+                        { message in
+                            edit(message)
+                            fieldGeneration &+= 1
+                            focused = true
+                        }
+                    })
+                    Divider().padding(.horizontal, AgentComposerMetrics.inner).padding(.bottom, AgentComposerMetrics.gap)
+                }
                 if attachmentCount > 0 {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AgentComposerMetrics.gap) { attachments }
