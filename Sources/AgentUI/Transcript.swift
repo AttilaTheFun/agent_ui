@@ -108,107 +108,122 @@ public struct TranscriptView: View {
     @ObservedObject private var openedCalls = ToolCallsOpen.shared
 
     public var body: some View {
-        ScrollViewReader { proxy in
-            // A List, not a stack in a ScrollView: rows are laid out as they
-            // come on screen and diffed on a delta, so a thread of thousands
-            // of rows costs what is visible. The bottom is kept by scrolling
-            // to the last row, without animation, on arrival and on change.
-            List {
-                Group {
-                    if let loadEarlier, !messages.isEmpty {
-                        Button(action: loadEarlier) {
-                            Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity)
-                        .transcriptCell()
-                        .id("earlier")
-                    }
-                    if messages.isEmpty { emptyState }
-                    // The committed transcript: neither the queue nor a
-                    // just-sent message, which are overlaid after the reply.
-                    // A run of tool calls folds into one row that opens a
-                    // sheet; everything else is its own row.
-                    // The replies still streaming are rows of the same list,
-                    // after the record, so a reply's finished row takes its
-                    // stream's place instead of the stream leaving the
-                    // footer and a new row arriving above it.
-                    ForEach(rows) { block in
-                        switch block {
-                        case .message(let message):
-                            TranscriptRow(message: message).transcriptCell().id(message.id)
-                        case .calls(let run):
-                            ToolCallsRow(run: run).transcriptCell().id(block.id)
-                        case .stream(let stream):
-                            AssistantBubble(text: stream.text, streaming: true).transcriptCell().id(stream.id)
-                        }
-                    }
-                    // The footer: everything that is not the record — the
-                    // reply as it streams, the queue, a message on its way,
-                    // what the turn is doing, an error — and the room above
-                    // the composer. One cell, always present, so the thread
-                    // has one place to scroll to and the gap scrolls with it.
-                    EphemeralFooter(pending: messages.filter(\.pending), sending: messages.filter(\.sending),
-                                    status: status, activity: activity, error: error)
-                        .transcriptCell()
-                        .id("bottom")
-                }
-                .listRowSeparator(.hidden)
-                .plainListRow()
-            }
-            .listStyle(.plain)
-            .noMinimumRowHeight()
-            // When the list itself changes size — the keyboard coming or
-            // going, the composer growing — its bottom stays where it is,
-            // moving with the change, rather than the rows keeping their
-            // offset and jumping once the change is done.
-            .bottomAnchoredOnResize()
-            // A row arriving or going — a message sent, a reply landing —
-            // slides in as a list's rows do; words streaming into a row
-            // and the status line changing do not count, and stay still.
-            // The first rows to appear arrive in place, not sliding: a
-            // transcript opening is not a message landing.
-            .animation(populated ? .default : nil, value: messages.count)
-            .sheet(isPresented: Binding(get: { opened.url != nil },
-                                        set: { if !$0 { opened.url = nil } })) {
-                if let url = opened.url { ImageViewer(url: url) }
-            }
-            .sheet(isPresented: Binding(get: { openedCalls.run != nil },
-                                        set: { if !$0 { openedCalls.run = nil } })) {
-                if let run = openedCalls.run { ToolCallsSheet(run: run) }
-            }
-            .onAppear {
-                populated = !messages.isEmpty
-                proxy.scrollTo("bottom", anchor: .bottom)
-            }
-            // The keyboard shrinks the list from below; the last row rides
-            // up with it, and comes back down as it goes.
-            .keyboardTracking { proxy.scrollTo("bottom", anchor: .bottom) }
-            .onChange(of: messages.count) { _ in
-                if populated {
-                    // After the layout, as the stream's scroll: a row
-                    // arriving (a message sent landing on the record) is
-                    // measured in the next pass, and a scroll made in this
-                    // one stops a row short, the last message under the
-                    // composer.
-                    afterLayout { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
-                } else {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                    populated = !messages.isEmpty
-                }
-            }
-            // The box grew: its new inset lands in the next layout pass,
-            // and a scroll made in this one is measured against the old
-            // — short by the growth, the gap cell left under the box.
-            .onChange(of: bottomInset) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
-            // A reply starting is a new row, measured in the next layout
-            // pass; scrolled to in this one, the bottom is short by the
-            // row and the reply arrives under the composer. So these wait
-            // for the layout, as the composer's growth does.
-            .onChange(of: streams) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
-            .onChange(of: activity) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
-            .onChange(of: status) { _ in afterLayout { proxy.scrollTo("bottom", anchor: .bottom) } }
+        #if canImport(UIKit) || canImport(AppKit)
+        if #available(iOS 18, macOS 15, *) {
+            // Scrolled to the content's bottom edge, which the scroll view
+            // knows however many rows it has measured; a row's id is found
+            // at an estimated height until the row has been laid out, and a
+            // scroll to it lands short, then corrects — a jump.
+            EdgeScrolled { toBottom in transcript(toBottom) }
+        } else {
+            ScrollViewReader { proxy in transcript { proxy.scrollTo("bottom", anchor: .bottom) } }
         }
+        #else
+        ScrollViewReader { proxy in transcript { proxy.scrollTo("bottom", anchor: .bottom) } }
+        #endif
+    }
+
+    /// The transcript's list, given how to scroll it to its bottom.
+    private func transcript(_ toBottom: @escaping () -> Void) -> some View {
+        // A List, not a stack in a ScrollView: rows are laid out as they
+        // come on screen and diffed on a delta, so a thread of thousands
+        // of rows costs what is visible. The bottom is kept by scrolling
+        // to the last row, without animation, on arrival and on change.
+        List {
+            Group {
+                if let loadEarlier, !messages.isEmpty {
+                    Button(action: loadEarlier) {
+                        Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .transcriptCell()
+                    .id("earlier")
+                }
+                if messages.isEmpty { emptyState }
+                // The committed transcript: neither the queue nor a
+                // just-sent message, which are overlaid after the reply.
+                // A run of tool calls folds into one row that opens a
+                // sheet; everything else is its own row.
+                // The replies still streaming are rows of the same list,
+                // after the record, so a reply's finished row takes its
+                // stream's place instead of the stream leaving the
+                // footer and a new row arriving above it.
+                ForEach(rows) { block in
+                    switch block {
+                    case .message(let message):
+                        TranscriptRow(message: message).transcriptCell().id(message.id)
+                    case .calls(let run):
+                        ToolCallsRow(run: run).transcriptCell().id(block.id)
+                    case .stream(let stream):
+                        AssistantBubble(text: stream.text, streaming: true).transcriptCell().id(stream.id)
+                    }
+                }
+                // The footer: everything that is not the record — the
+                // reply as it streams, the queue, a message on its way,
+                // what the turn is doing, an error — and the room above
+                // the composer. One cell, always present, so the thread
+                // has one place to scroll to and the gap scrolls with it.
+                EphemeralFooter(pending: messages.filter(\.pending), sending: messages.filter(\.sending),
+                                status: status, activity: activity, error: error)
+                    .transcriptCell()
+                    .id("bottom")
+            }
+            .listRowSeparator(.hidden)
+            .plainListRow()
+        }
+        .listStyle(.plain)
+        .noMinimumRowHeight()
+        // When the list itself changes size — the keyboard coming or
+        // going, the composer growing — its bottom stays where it is,
+        // moving with the change, rather than the rows keeping their
+        // offset and jumping once the change is done.
+        .bottomAnchoredOnResize()
+        // A row arriving or going — a message sent, a reply landing —
+        // slides in as a list's rows do; words streaming into a row
+        // and the status line changing do not count, and stay still.
+        // The first rows to appear arrive in place, not sliding: a
+        // transcript opening is not a message landing.
+        .animation(populated ? .default : nil, value: messages.count)
+        .sheet(isPresented: Binding(get: { opened.url != nil },
+                                    set: { if !$0 { opened.url = nil } })) {
+            if let url = opened.url { ImageViewer(url: url) }
+        }
+        .sheet(isPresented: Binding(get: { openedCalls.run != nil },
+                                    set: { if !$0 { openedCalls.run = nil } })) {
+            if let run = openedCalls.run { ToolCallsSheet(run: run) }
+        }
+        .onAppear {
+            populated = !messages.isEmpty
+            toBottom()
+        }
+        // The keyboard shrinks the list from below; the last row rides
+        // up with it, and comes back down as it goes.
+        .keyboardTracking { toBottom() }
+        .onChange(of: messages.count) { _ in
+            if populated {
+                // After the layout, as the stream's scroll: a row
+                // arriving (a message sent landing on the record) is
+                // measured in the next pass, and a scroll made in this
+                // one stops a row short, the last message under the
+                // composer.
+                afterLayout { withAnimation { toBottom() } }
+            } else {
+                toBottom()
+                populated = !messages.isEmpty
+            }
+        }
+        // The box grew: its new inset lands in the next layout pass,
+        // and a scroll made in this one is measured against the old
+        // — short by the growth, the gap cell left under the box.
+        .onChange(of: bottomInset) { _ in afterLayout { toBottom() } }
+        // A reply starting is a new row, measured in the next layout
+        // pass; scrolled to in this one, the bottom is short by the
+        // row and the reply arrives under the composer. So these wait
+        // for the layout, as the composer's growth does.
+        .onChange(of: streams) { _ in afterLayout { toBottom() } }
+        .onChange(of: activity) { _ in afterLayout { toBottom() } }
+        .onChange(of: status) { _ in afterLayout { toBottom() } }
     }
 
     /// The record's blocks, then the streams it does not carry yet.
@@ -980,4 +995,18 @@ func afterLayout(_ action: @escaping @MainActor () -> Void) {
         action()
     }
     #endif
+}
+
+/// A scroll view kept by its position (iOS 18, macOS 15): the content
+/// gets the way to scroll to its bottom edge, and opens there.
+@available(iOS 18, macOS 15, *)
+struct EdgeScrolled<Content: View>: View {
+    @State private var position = ScrollPosition(edge: .bottom)
+    let content: (@escaping () -> Void) -> Content
+
+    init(@ViewBuilder content: @escaping (@escaping () -> Void) -> Content) { self.content = content }
+
+    var body: some View {
+        content({ position.scrollTo(edge: .bottom) }).scrollPosition($position)
+    }
 }
