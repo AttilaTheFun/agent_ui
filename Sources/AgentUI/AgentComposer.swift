@@ -23,6 +23,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// Say this now, ahead of the turn in flight: the app interrupts and
     /// hands it over. Without one, a busy composer only stops.
     let steer: (() -> Void)?
+    /// What the turn is doing, and the last failure, over the field.
+    let status: [ActivityItem]
+    let activity: String?
+    let error: String?
     /// What has been said and is not on the record yet, over the field.
     let outgoing: [OutgoingMessage]
     /// Takes a queued message back into the field; nil leaves it be.
@@ -38,13 +42,15 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
     ///   - attachmentCount: how many attachments `attachments` shows.
+    ///   - status/activity/error: what the turn is doing and the last failure, over the field.
     ///   - outgoing: messages said and not on the record yet, shown over the field.
     ///   - edit: takes a queued message back into the field.
     ///   - controls: the buttons and pills beside the send button.
     ///   - attachments: the thumbnails above the field.
     public init(draft: Binding<String>, placeholder: String = "Message the agent…", busy: Bool,
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
-                steer: (() -> Void)? = nil, outgoing: [OutgoingMessage] = [],
+                steer: (() -> Void)? = nil, status: [ActivityItem] = [], activity: String? = nil,
+                error: String? = nil, outgoing: [OutgoingMessage] = [],
                 edit: ((OutgoingMessage) -> Void)? = nil,
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
         self._draft = draft
@@ -54,6 +60,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         self.send = send
         self.stop = stop
         self.steer = steer
+        self.status = status
+        self.activity = activity
+        self.error = error
         self.outgoing = outgoing
         self.edit = edit
         self.controls = controls()
@@ -121,8 +130,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // Spacing by hand: the message keeps `textInset` from the box
             // and from the controls, while the controls keep `gap`.
             VStack(alignment: .leading, spacing: 0) {
-                if !outgoing.isEmpty {
-                    OutgoingList(messages: outgoing, edit: edit.map { edit in
+                if !ComposerStack.isEmpty(status: status, activity: activity, error: error, outgoing: outgoing) {
+                    ComposerStack(status: status, activity: activity, error: error, outgoing: outgoing, edit: edit.map { edit in
                         // The words come back into the field, which is
                         // renewed to show them and focused to edit them.
                         { message in

@@ -77,13 +77,16 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     @State private var composerHeight: CGFloat = 0
 
     public var body: some View {
-        TranscriptView(messages: messages, streams: streams, activity: activity, status: status, error: error,
+        // The thread is the record and the replies being written; what
+        // the turn is doing, a failure and what is on its way are the
+        // composer's, over its field.
+        TranscriptView(messages: messages, streams: streams, activity: nil, status: [], error: nil,
                        emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
                        bottomInset: composerHeight)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: send, stop: stop, steer: steer,
-                              outgoing: outgoing, edit: edit, controls: controls, attachments: attachments)
+                              status: status, activity: activity, error: error, outgoing: outgoing, edit: edit, controls: controls, attachments: attachments)
                     .background(GeometryReader { geometry in
                         Color.clear
                             .onAppear { composerHeight = geometry.size.height }

@@ -196,10 +196,11 @@ public struct TranscriptView: View {
         // and a scroll made in this one is measured against the old
         // — short by the growth, the gap cell left under the box.
         .onChange(of: bottomInset) { _ in afterLayout { toBottom() } }
-        // A reply streaming in, the status line changing: the content
-        // grows under a bottom the list keeps anchored, so nothing
-        // scrolls. A scroll to the footer here is made against a new
-        // row's estimated height, lands short, and corrects — a jump.
+        // A reply streaming in: its row is new or taller, measured in
+        // the next layout pass, so the scroll waits for it. The app holds
+        // the record while a reply is written, so nothing else moves the
+        // rows meanwhile.
+        .onChange(of: streams) { _ in afterLayout { toBottom() } }
     }
 
     /// The record's blocks, then the streams it does not carry yet. What
@@ -224,8 +225,8 @@ public struct TranscriptView: View {
 /// What the transcript draws in one slot: a message, or a run of tool
 /// calls folded into one row. A run is consecutive messages that are only
 /// tool calls and their results — an assistant row with activities and no
-/// words, a tool row with no picture — and is folded when it holds more
-/// than one call; a lone call reads fine as itself.
+/// words, a tool row with no picture — and is folded into one row however
+/// many calls it holds, so the row keeps one identity as the run grows.
 public enum TranscriptBlock: Identifiable {
     case message(TranscriptMessage)
     case calls([TranscriptMessage])
@@ -262,11 +263,10 @@ public enum TranscriptBlock: Identifiable {
         var run: [TranscriptMessage] = []
         func flush() {
             guard !run.isEmpty else { return }
-            if callCount(run) > 1 {
-                out.append(.calls(run))
-            } else {
-                out.append(contentsOf: run.map(TranscriptBlock.message))
-            }
+            // A run is one row from its first call, under that call's id,
+            // however many follow: the row counts up in place rather than
+            // a lone call's row giving way to a group's.
+            out.append(.calls(run))
             run = []
         }
         for message in messages {
