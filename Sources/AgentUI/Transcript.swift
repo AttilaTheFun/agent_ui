@@ -158,6 +158,11 @@ public struct TranscriptView: View {
             }
             .listStyle(.plain)
             .noMinimumRowHeight()
+            // When the list itself changes size — the keyboard coming or
+            // going, the composer growing — its bottom stays where it is,
+            // moving with the change, rather than the rows keeping their
+            // offset and jumping once the change is done.
+            .bottomAnchoredOnResize()
             // A row arriving or going — a message sent, a reply landing —
             // slides in as a list's rows do; words streaming into a row
             // and the status line changing do not count, and stay still.
@@ -707,6 +712,20 @@ extension View {
                 ? .linear(duration: duration)
                 : .timingCurve(timing.controlPoint1.x, timing.controlPoint1.y, timing.controlPoint2.x, timing.controlPoint2.y, duration: duration)
             withAnimation(animation) { action() }
+        }
+        #else
+        self
+        #endif
+    }
+
+    /// The bottom stays put when the scroll view changes size (iOS 18,
+    /// macOS 15); earlier systems and the portable SwiftUI keep the offset.
+    @ViewBuilder func bottomAnchoredOnResize() -> some View {
+        #if canImport(UIKit) || canImport(AppKit)
+        if #available(iOS 18, macOS 15, *) {
+            self.defaultScrollAnchor(.bottom, for: .sizeChanges)
+        } else {
+            self
         }
         #else
         self
