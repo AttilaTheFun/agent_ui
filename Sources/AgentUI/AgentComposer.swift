@@ -56,24 +56,29 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
 
     /// Sends; the keyboard stays up and the field keeps focus, to write
-    /// the next message. Apple's multi-line field goes on drawing the
+    /// the next message. Apple's multi-line field can go on drawing the
     /// words just sent while it is focused, and a phone's keyboard can
     /// hand them back (a pending autocorrection) just after the app has
-    /// cleared the draft. So once the send has settled, words handed back
-    /// are cleared again, and the field is renewed to read the empty
-    /// draft, keeping focus.
+    /// cleared the draft. So once the send has settled the draft is set
+    /// to a space and then to nothing: two real changes, each pushed into
+    /// the field it has, which keeps its focus and the keyboard. (A new
+    /// field would read the draft too, but takes the keyboard down.) On a
+    /// Mac, where there is no keyboard to lose, the field is renewed.
     private func fire(_ action: @escaping () -> Void) {
-        let sent = draft
         action()
         // The app kept the draft (nothing was sent): leave it.
         guard draft.isEmpty else { return }
+        #if os(macOS)
+        fieldGeneration &+= 1
+        focused = true
+        #else
         Task { @MainActor in
             await Task.yield()
-            if draft == sent { draft = "" }
-            guard draft.isEmpty else { return }
-            fieldGeneration &+= 1
-            focused = true
+            draft = " "
+            await Task.yield()
+            draft = ""
         }
+        #endif
     }
 
     public var body: some View {
