@@ -75,6 +75,7 @@ public struct TranscriptView: View {
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
                 loadEarlier: (() -> Void)? = nil, bottomInset: CGFloat = 0) {
         self.messages = messages
+        self._shown = State(initialValue: messages)
         self.busy = busy
         self.status = status
         self.activity = activity
@@ -91,12 +92,24 @@ public struct TranscriptView: View {
 
     static let bottom = "status"
 
+    /// Rows are being put in at the end: the list keeps its top still.
+    @State private var holdTop = false
+
+    /// The rows drawn: the app's, as of its last change.
+    @State private var shown: [TranscriptMessage]
+
+    /// Whether `new` is `old` with rows added after its last.
+    static func appends(_ new: [TranscriptMessage], to old: [TranscriptMessage]) -> Bool {
+        guard let last = old.last, new.last?.id != last.id else { return false }
+        return new.contains { $0.id == last.id }
+    }
+
     public var body: some View {
         ScrollViewReader { proxy in
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
             List {
                 Group {
-                    if let loadEarlier, !messages.isEmpty {
+                    if let loadEarlier, !shown.isEmpty {
                         Button(action: loadEarlier) {
                             Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
                         }
@@ -104,8 +117,8 @@ public struct TranscriptView: View {
                         .frame(maxWidth: .infinity)
                         .transcriptCell()
                     }
-                    if messages.isEmpty { emptyState }
-                    ForEach(TranscriptBlock.blocks(messages)) { block in
+                    if shown.isEmpty { emptyState }
+                    ForEach(TranscriptBlock.blocks(shown)) { block in
                         switch block {
                         case .message(let message): TranscriptRow(message: message).transcriptCell()
                         case .calls(let run): ToolCallsRow(run: run).transcriptCell()
@@ -121,21 +134,46 @@ public struct TranscriptView: View {
             .listStyle(.plain)
             .noMinimumRowHeight()
             // The bottom stays put as the list or its rows change size.
-            .bottomAnchoredOnResize()
+            .bottomAnchoredOnResize(!holdTop)
             .onAppear(perform: toBottom)
-            // A message arrived at the end: once it is laid out, the thread
-            // slides to the bottom. Anything else (the rows replaced whole,
-            // earlier ones loaded) is taken to the bottom without a slide,
-            // which would run across all of it.
-            .onChange(of: messages.last?.id) { old, _ in
-                let appended = old.map { id in messages.contains { $0.id == id } } ?? false
-                afterLayout { if appended { withAnimation { toBottom() } } else { toBottom() } }
+            // The rows drawn are this view's copy of the app's, changed as
+            // the app's change. Rows arriving at the end are put in below
+            // what is seen — the list holding its top still for that one
+            // change, rather than its bottom — and the thread then scrolls
+            // up to them, so every row comes in from the bottom. (The
+            // list's own insert animation fades a row in where it will sit
+            // and slides the rows under it down.) Anything else (the rows
+            // replaced whole, earlier ones loaded, a row's words) is not
+            // animated.
+            .onChange(of: messages) { _, new in
+                let appended = Self.appends(new, to: shown)
+                if appended {
+                    holdTop = true
+                    shown = new
+                    // The scroll once the list has the rows and the box its
+                    // new height (the words sent leave it in the same
+                    // change): a scroll made before either has landed
+                    // measures against the old and goes nowhere.
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 60_000_000)
+                        withAnimation(.smooth(duration: 0.3)) { toBottom() }
+                        try? await Task.sleep(nanoseconds: 350_000_000)
+                        holdTop = false
+                    }
+                } else {
+                    let moved = new.last?.id != shown.last?.id
+                    shown = new
+                    if moved { afterLayout(toBottom) }
+                }
             }
             // The room the thread has changed — the keyboard coming or
             // going, the composer growing: the thread eases to the bottom
             // over about the time the keyboard takes, rather than jumping
             // there while the keyboard is still on its way.
-            .onVisibleHeightChange { withAnimation(.smooth(duration: 0.35)) { toBottom() } }
+            // While rows arrive, their own scroll takes the thread to the
+            // bottom: a second scroll in the middle of it (the composer
+            // shrinking as the words sent leave it) fought it.
+            .onVisibleHeightChange { if !holdTop { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
@@ -176,21 +214,24 @@ struct StatusRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // The spinner and the words are always there, hidden when
+            // there is nothing to say; they change without animation, so
+            // the row never grows, shrinks or fades as the thread moves.
             HStack(spacing: 8) {
-                if let line {
-                    ProgressView().controlSize(.small).id(shown)
-                    if let symbol = line.symbol, !symbol.isEmpty {
-                        Image(systemName: symbol).foregroundColor(.secondary).font(.footnote)
-                    }
-                    Text(line.label).font(.footnote).foregroundColor(.secondary)
-                } else if let error {
-                    Text(error).font(.footnote).foregroundColor(.red)
+                ProgressView().controlSize(.small).id(shown)
+                    .opacity(line == nil ? 0 : 1)
+                if let symbol = line?.symbol, !symbol.isEmpty {
+                    Image(systemName: symbol).foregroundColor(.secondary).font(.footnote)
                 }
+                Text(line?.label ?? error ?? "")
+                    .font(.footnote)
+                    .foregroundColor(line == nil && error != nil ? .red : .secondary)
                 Spacer(minLength: 0)
             }
             .lineLimit(1)
             .frame(height: 20)
             .padding(.horizontal, TranscriptMetrics.edgeInset)
+            .transaction { $0.animation = nil }
             Color.clear.frame(height: TranscriptMetrics.bottomGap)
         }
         .onAppear { shown &+= 1 }
@@ -591,11 +632,11 @@ extension View {
         #endif
     }
 
-    /// The bottom stays put when the list or its content changes size.
-    /// The portable SwiftUI keeps the offset.
-    @ViewBuilder func bottomAnchoredOnResize() -> some View {
+    /// The bottom stays put when the list or its content changes size;
+    /// with `false`, the top. The portable SwiftUI keeps the offset.
+    @ViewBuilder func bottomAnchoredOnResize(_ bottom: Bool = true) -> some View {
         #if canImport(UIKit) || canImport(AppKit)
-        self.defaultScrollAnchor(.bottom, for: .sizeChanges)
+        self.defaultScrollAnchor(bottom ? .bottom : .top, for: .sizeChanges)
         #else
         self
         #endif
