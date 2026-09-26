@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 // The agent's composer, in the Claude app's shape: one rounded box holding
 // the attachments picked for the next message, a growing text field, and a
@@ -33,8 +30,6 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
-    /// A send let the field go: it is renewed once the keyboard is down.
-    @State private var renewWhenHidden = false
 
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
@@ -62,23 +57,22 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
 
     /// Sends, then makes sure the field shows what the app now holds.
     /// Apple's `TextField(axis: .vertical)` keeps drawing the text it had
-    /// when it is focused, so the message stayed in the box and the box
-    /// stayed tall after it had gone. A fresh identity reads the binding
-    /// again; focus is put straight back so the keyboard does not flinch.
+    /// while it is focused, so a draft cleared under a focused field
+    /// stayed in the box.
     ///
-    /// On a phone the keyboard goes with its own animation, as it does
-    /// after sending in Claude or ChatGPT: renewing a focused field tears
-    /// the keyboard down at once, so the field is let go first and renewed
-    /// only once the keyboard has gone. On a Mac there is no keyboard to
-    /// animate and the field keeps focus, to type the next message.
-    private func fire(_ action: () -> Void) {
-        action()
-        guard draft.isEmpty else { return }
+    /// On a phone the field is let go first, so the keyboard goes with its
+    /// own animation as it does after sending in Claude or ChatGPT, and the
+    /// message is sent (and the draft cleared) once it has been let go:
+    /// an unfocused field shows what the binding holds. On a Mac there is
+    /// no keyboard to animate: the field is renewed to read the cleared
+    /// draft and keeps focus, to type the next message.
+    private func fire(_ action: @escaping () -> Void) {
         #if os(iOS)
         focused = false
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        renewWhenHidden = true
+        Task { @MainActor in action() }
         #else
+        action()
+        guard draft.isEmpty else { return }
         fieldGeneration &+= 1
         focused = true
         #endif
@@ -139,13 +133,6 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     // both are decided here and the field sees neither;
                     // elsewhere the submit above is what sends.
                     .returnSendsShiftReturnBreaks(draft: $draft) { if canSend { fire(send) } }
-                    #if os(iOS)
-                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
-                        guard renewWhenHidden else { return }
-                        renewWhenHidden = false
-                        fieldGeneration &+= 1
-                    }
-                    #endif
                 HStack(spacing: AgentComposerMetrics.gap) {
                     controls
                     // The one flexible gap: everything else is `gap`.
