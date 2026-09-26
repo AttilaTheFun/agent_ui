@@ -91,6 +91,15 @@ public struct TranscriptView: View {
 
     static let bottom = "status"
 
+    /// The last row the thread has drawn.
+    @State private var lastSeen: String?
+
+    /// Whether the rows now are the rows drawn with more after them.
+    private var appended: Bool {
+        guard let lastSeen, messages.last?.id != lastSeen else { return false }
+        return messages.contains { $0.id == lastSeen }
+    }
+
     public var body: some View {
         ScrollViewReader { proxy in
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
@@ -122,14 +131,19 @@ public struct TranscriptView: View {
             .noMinimumRowHeight()
             // The bottom stays put as the list or its rows change size.
             .bottomAnchoredOnResize()
-            .onAppear(perform: toBottom)
-            // A message arrived at the end: once it is laid out, the thread
-            // slides to the bottom. Anything else (the rows replaced whole,
-            // earlier ones loaded) is taken to the bottom without a slide,
-            // which would run across all of it.
-            .onChange(of: messages.last?.id) { old, _ in
-                let appended = old.map { id in messages.contains { $0.id == id } } ?? false
-                afterLayout { if appended { withAnimation { toBottom() } } else { toBottom() } }
+            .onAppear {
+                lastSeen = messages.last?.id
+                toBottom()
+            }
+            // Rows arriving at the end come in as one animated change — the
+            // list's inserts, like UIKit's batch updates — and the bottom
+            // anchor carries the thread up with them: one motion, no scroll
+            // after. Anything else (the rows replaced whole, earlier ones
+            // loaded) is not animated, and is taken to the bottom.
+            .animation(appended ? .smooth(duration: 0.3) : nil, value: messages.last?.id)
+            .onChange(of: messages.last?.id) { _, last in
+                if !appended { afterLayout(toBottom) }
+                lastSeen = last
             }
             // The room the thread has changed — the keyboard coming or
             // going, the composer growing: the thread eases to the bottom
