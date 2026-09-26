@@ -175,7 +175,7 @@ struct StatusRow: View {
             HStack(spacing: 8) {
                 if let line {
                     ProgressView().controlSize(.small)
-                    if let symbol = line.symbol {
+                    if let symbol = line.symbol, !symbol.isEmpty {
                         Image(systemName: symbol).foregroundColor(.secondary).font(.footnote)
                     }
                     Text(line.label).font(.footnote).foregroundColor(.secondary)
@@ -205,7 +205,7 @@ struct StatusRow: View {
 
     static func symbol(for kind: ActivityItem.Kind) -> String {
         switch kind {
-        case .thinking: "brain"
+        case .thinking: ""
         case .shell: "terminal"
         case .monitor: "eye"
         case .subagent: "person.2"

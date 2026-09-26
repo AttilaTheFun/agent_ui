@@ -66,10 +66,10 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// as the box grows with a longer message.
     @State private var composerHeight: CGFloat = 0
 
-    /// The thread as it was when a message was sent, held while the
-    /// keyboard goes: a row or a status arriving mid-dismissal moved the
-    /// thread against the keyboard's own motion. Only the send button's
-    /// spinner changes meanwhile.
+    /// The thread as it was when a message was sent, held for a moment:
+    /// the send's own changes (the field emptying, the composer shrinking)
+    /// settle before a row or a status moves the thread. Only the send
+    /// button's spinner changes meanwhile.
     @State private var held: Held?
 
     struct Held {
