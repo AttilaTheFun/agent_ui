@@ -133,11 +133,12 @@ public struct TranscriptView: View {
             // The bottom stays put as the list or its rows change size.
             .bottomAnchoredOnResize()
             .onAppear(perform: toBottom)
-            // The rows drawn are this view's copy of the app's, changed in
-            // one transaction as the app's change: rows arriving at the end
-            // come in animated — the list's inserts, like UIKit's batch
-            // updates — with the scroll to the bottom starting as they land. Anything else (the rows replaced whole,
-            // earlier ones loaded, a row's words) is not animated.
+            // The rows drawn are this view's copy of the app's, changed as
+            // the app's change: rows arriving at the end come in animated —
+            // the list's inserts, like UIKit's batch updates — with the
+            // scroll to the bottom starting as they land. Anything else
+            // (the rows replaced whole, earlier ones loaded, a row's words)
+            // is not animated.
             .onChange(of: messages) { _, new in
                 let appended = Self.appends(new, to: shown)
                 if appended {
