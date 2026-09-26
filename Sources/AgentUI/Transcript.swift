@@ -136,13 +136,15 @@ public struct TranscriptView: View {
                 toBottom()
             }
             // Rows arriving at the end come in as one animated change — the
-            // list's inserts, like UIKit's batch updates — and the bottom
-            // anchor carries the thread up with them: one motion, no scroll
+            // list's inserts, like UIKit's batch updates — with the scroll
+            // to the bottom in the same animation: one motion, no scroll
             // after. Anything else (the rows replaced whole, earlier ones
             // loaded) is not animated, and is taken to the bottom.
             .animation(appended ? .smooth(duration: 0.3) : nil, value: messages.last?.id)
             .onChange(of: messages.last?.id) { _, last in
-                if !appended { afterLayout(toBottom) }
+                // Appended: the scroll joins the inserts' animation, so the
+                // rows and the thread move as one.
+                if appended { withAnimation(.smooth(duration: 0.3)) { toBottom() } } else { afterLayout(toBottom) }
                 lastSeen = last
             }
             // The room the thread has changed — the keyboard coming or
