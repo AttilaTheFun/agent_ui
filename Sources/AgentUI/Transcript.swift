@@ -154,8 +154,7 @@ public struct TranscriptView: View {
                     // in the same update the list checks its target
                     // against the rows it had, and iOS 26 throws.
                     afterLayout {
-                        withAnimation(.smooth(duration: 0.3)) { toBottom() }
-                        holdTop = false
+                        withAnimation(.smooth(duration: 0.3)) { toBottom() } completion: { holdTop = false }
                     }
                 } else {
                     let moved = new.last?.id != shown.last?.id

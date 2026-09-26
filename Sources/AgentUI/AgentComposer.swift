@@ -131,32 +131,33 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     }
                     .padding(.bottom, AgentComposerMetrics.gap)
                 }
-                TextField(sendingWords == nil ? placeholder : "", text: $draft, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    // The words on their way, where they were written,
-                    // until something new is.
-                    .overlay(alignment: .topLeading) {
-                        if let sendingWords {
-                            Text(sendingWords)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1...10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .allowsHitTesting(false)
-                        }
+                // The words on their way, where they were written, until
+                // something new is: laid out with the field, so the box
+                // keeps their height until they leave it.
+                ZStack(alignment: .topLeading) {
+                    if let sendingWords {
+                        Text(sendingWords)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1...10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .allowsHitTesting(false)
                     }
-                    .lineLimit(1...10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, AgentComposerMetrics.inner)
-                    .padding(.top, AgentComposerMetrics.inner)
-                    .padding(.bottom, AgentComposerMetrics.textInset)
-                    .focused($focused)
-                    .id(fieldGeneration)
-                    .onSubmit { if canSend { fire(send) } }
-                    // Return sends; Shift-Return is a newline. Where keys
-                    // can be read (a Mac, a hardware keyboard on a phone),
-                    // both are decided here and the field sees neither;
-                    // elsewhere the submit above is what sends.
-                    .returnSendsShiftReturnBreaks(draft: $draft) { if canSend { fire(send) } }
+                    TextField(sendingWords == nil ? placeholder : "", text: $draft, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .lineLimit(1...10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .focused($focused)
+                        .id(fieldGeneration)
+                        .onSubmit { if canSend { fire(send) } }
+                        // Return sends; Shift-Return is a newline. Where keys
+                        // can be read (a Mac, a hardware keyboard on a phone),
+                        // both are decided here and the field sees neither;
+                        // elsewhere the submit above is what sends.
+                        .returnSendsShiftReturnBreaks(draft: $draft) { if canSend { fire(send) } }
+                }
+                .padding(.horizontal, AgentComposerMetrics.inner)
+                .padding(.top, AgentComposerMetrics.inner)
+                .padding(.bottom, AgentComposerMetrics.textInset)
                 HStack(spacing: AgentComposerMetrics.gap) {
                     controls
                     // The one flexible gap: everything else is `gap`.
