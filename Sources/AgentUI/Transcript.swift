@@ -75,6 +75,7 @@ public struct TranscriptView: View {
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
                 loadEarlier: (() -> Void)? = nil, bottomInset: CGFloat = 0) {
         self.messages = messages
+        self._shown = State(initialValue: messages)
         self.busy = busy
         self.status = status
         self.activity = activity
@@ -91,13 +92,13 @@ public struct TranscriptView: View {
 
     static let bottom = "status"
 
-    /// The last row the thread has drawn.
-    @State private var lastSeen: String?
+    /// The rows drawn: the app's, as of its last change.
+    @State private var shown: [TranscriptMessage]
 
-    /// Whether the rows now are the rows drawn with more after them.
-    private var appended: Bool {
-        guard let lastSeen, messages.last?.id != lastSeen else { return false }
-        return messages.contains { $0.id == lastSeen }
+    /// Whether `new` is `old` with rows added after its last.
+    static func appends(_ new: [TranscriptMessage], to old: [TranscriptMessage]) -> Bool {
+        guard let last = old.last, new.last?.id != last.id else { return false }
+        return new.contains { $0.id == last.id }
     }
 
     public var body: some View {
@@ -105,7 +106,7 @@ public struct TranscriptView: View {
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
             List {
                 Group {
-                    if let loadEarlier, !messages.isEmpty {
+                    if let loadEarlier, !shown.isEmpty {
                         Button(action: loadEarlier) {
                             Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
                         }
@@ -113,8 +114,8 @@ public struct TranscriptView: View {
                         .frame(maxWidth: .infinity)
                         .transcriptCell()
                     }
-                    if messages.isEmpty { emptyState }
-                    ForEach(TranscriptBlock.blocks(messages)) { block in
+                    if shown.isEmpty { emptyState }
+                    ForEach(TranscriptBlock.blocks(shown)) { block in
                         switch block {
                         case .message(let message): TranscriptRow(message: message).transcriptCell()
                         case .calls(let run): ToolCallsRow(run: run).transcriptCell()
@@ -131,21 +132,25 @@ public struct TranscriptView: View {
             .noMinimumRowHeight()
             // The bottom stays put as the list or its rows change size.
             .bottomAnchoredOnResize()
-            .onAppear {
-                lastSeen = messages.last?.id
-                toBottom()
-            }
-            // Rows arriving at the end come in as one animated change — the
-            // list's inserts, like UIKit's batch updates — with the scroll
-            // to the bottom in the same animation: one motion, no scroll
-            // after. Anything else (the rows replaced whole, earlier ones
-            // loaded) is not animated, and is taken to the bottom.
-            .animation(appended ? .smooth(duration: 0.3) : nil, value: messages.last?.id)
-            .onChange(of: messages.last?.id) { _, last in
-                // Appended: the scroll joins the inserts' animation, so the
-                // rows and the thread move as one.
-                if appended { withAnimation(.smooth(duration: 0.3)) { toBottom() } } else { afterLayout(toBottom) }
-                lastSeen = last
+            .onAppear(perform: toBottom)
+            // The rows drawn are this view's copy of the app's, changed in
+            // one transaction as the app's change: rows arriving at the end
+            // come in animated, with the scroll to the bottom in the same
+            // animation — the list's inserts, like UIKit's batch updates,
+            // and one motion. Anything else (the rows replaced whole,
+            // earlier ones loaded, a row's words) is not animated.
+            .onChange(of: messages) { _, new in
+                let appended = Self.appends(new, to: shown)
+                if appended {
+                    withAnimation(.smooth(duration: 0.3)) {
+                        shown = new
+                        toBottom()
+                    }
+                } else {
+                    let moved = new.last?.id != shown.last?.id
+                    shown = new
+                    if moved { afterLayout(toBottom) }
+                }
             }
             // The room the thread has changed — the keyboard coming or
             // going, the composer growing: the thread eases to the bottom
