@@ -25,7 +25,7 @@ struct AgentExampleScreen: View {
     @State private var task: Task<Void, Never>?
 
     var body: some View {
-        AgentView(messages: messages, streamingText: streaming, activity: activity,
+        AgentView(messages: messages, activity: activity,
                   emptyBody: "Ask for anything; this agent echoes it back, slowly, after pretending to build.",
                   emptyFootnote: "Model: example", draft: $draft, busy: busy, send: send, stop: stop) {
             Button { } label: { AgentPillLabel("example") }.agentPillButton()
