@@ -136,17 +136,23 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // Spacing by hand: the message keeps `textInset` from the box
             // and from the controls, while the controls keep `gap`.
             VStack(alignment: .leading, spacing: 0) {
-                if !ComposerStack.isEmpty(status: status, activity: activity, error: error, outgoing: outgoing) {
-                    ComposerStack(status: status, activity: activity, error: error, outgoing: outgoing, edit: edit.map { edit in
-                        // The words come back into the field, which is
-                        // renewed to show them and focused to edit them.
-                        { message in
-                            edit(message)
-                            fieldGeneration &+= 1
-                            focused = true
+                // What the turn is doing and what is on its way, over the
+                // field: its lines come and go smoothly.
+                SmoothHeight {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !ComposerStack.isEmpty(status: status, activity: activity, error: error, outgoing: outgoing) {
+                            ComposerStack(status: status, activity: activity, error: error, outgoing: outgoing, edit: edit.map { edit in
+                                // The words come back into the field, which is
+                                // renewed to show them and focused to edit them.
+                                { message in
+                                    edit(message)
+                                    fieldGeneration &+= 1
+                                    focused = true
+                                }
+                            })
+                            Divider().padding(.horizontal, AgentComposerMetrics.inner).padding(.bottom, AgentComposerMetrics.gap)
                         }
-                    })
-                    Divider().padding(.horizontal, AgentComposerMetrics.inner).padding(.bottom, AgentComposerMetrics.gap)
+                    }
                 }
                 if attachmentCount > 0 {
                     ScrollView(.horizontal, showsIndicators: false) {

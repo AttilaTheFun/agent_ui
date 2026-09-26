@@ -97,3 +97,47 @@ struct TaskListRows: View {
         }
     }
 }
+
+/// Content whose height, as it changes, is taken over a moment in steps:
+/// a line coming or going over the composer's field moves the thread by
+/// its height smoothly, not in one frame. Stepped by hand, as a row
+/// arriving in the thread is.
+struct SmoothHeight<Content: View>: View {
+    let content: Content
+    /// The content's own height, as measured; negative before the first.
+    @State private var natural: CGFloat = -1
+    /// The height shown while it moves to the content's; nil once there.
+    @State private var shown: CGFloat?
+    @State private var move = 0
+    @State private var from: CGFloat = 0
+
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+
+    var body: some View {
+        content
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { geometry in
+                Color.clear
+                    .onAppear { natural = geometry.size.height }
+                    .onChange(of: geometry.size.height) { old, new in
+                        from = shown ?? old
+                        natural = new
+                        shown = from
+                        move += 1
+                    }
+            })
+            .frame(height: shown, alignment: .top)
+            .clipped()
+            .task(id: move) {
+                guard move > 0, shown != nil else { return }
+                let steps = 7
+                for index in 1...steps {
+                    try? await Task.sleep(nanoseconds: 30_000_000)
+                    if Task.isCancelled { return }
+                    let t = CGFloat(index) / CGFloat(steps)
+                    shown = from + (natural - from) * (1 - (1 - t) * (1 - t))
+                }
+                shown = nil
+            }
+    }
+}

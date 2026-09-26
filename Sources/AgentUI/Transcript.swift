@@ -480,8 +480,15 @@ public struct AssistantBubble: View {
             MarkdownText(text)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            // Nothing to act on until the words have stopped arriving.
-            if !streaming, !text.isEmpty { MessageActions(text: text) }
+            // Nothing to act on until the words have stopped arriving; the
+            // room for it is kept while they arrive, so the reply does not
+            // grow by it when they stop.
+            if !text.isEmpty || streaming {
+                MessageActions(text: text)
+                    .opacity(streaming ? 0 : 1)
+                    .disabled(streaming)
+                    .accessibilityHidden(streaming)
+            }
         }
         .padding(.horizontal, TranscriptMetrics.edgeInset)
         .opacity(streaming ? 0.85 : 1)
@@ -502,21 +509,28 @@ struct ReplyRow: View {
     let streaming: Bool
     /// How much is shown; nil for all of it.
     @State private var shown: Int?
-    /// How much there is to show, kept for the pacing loop.
+    /// How much there is to show, and whether more is coming, kept for
+    /// the pacing loop (which would otherwise see them as they were when
+    /// it began).
     @State private var target = 0
+    @State private var writing: Bool
 
     init(text: String, streaming: Bool) {
         self.text = text
         self.streaming = streaming
         _shown = State(initialValue: streaming ? 0 : nil)
         _target = State(initialValue: text.count)
+        _writing = State(initialValue: streaming)
     }
 
     static let frame: UInt64 = 33_000_000
+    /// Characters a frame at most: about 1,300 a second.
+    static let fastest = 44
 
     var body: some View {
         AssistantBubble(text: shown.map { String(text.prefix($0)) } ?? text, streaming: streaming || shown != nil)
             .onChange(of: text.count) { count in target = count }
+            .onChange(of: streaming) { value in writing = value }
             .task {
                 guard shown != nil else { return }
                 while !Task.isCancelled {
@@ -524,8 +538,11 @@ struct ReplyRow: View {
                     guard let current = shown else { return }
                     let behind = target - current
                     if behind > 0 {
-                        shown = current + max(3, behind / 8)
-                    } else if !streaming {
+                        // Faster the further behind, to a steady top speed
+                        // (about as fast as a model writes): a burst is
+                        // shown over the next moments, not in one.
+                        shown = current + min(max(3, behind / 8), Self.fastest)
+                    } else if !writing {
                         shown = nil
                         return
                     }
