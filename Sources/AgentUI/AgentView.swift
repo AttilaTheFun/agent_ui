@@ -66,13 +66,42 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// as the box grows with a longer message.
     @State private var composerHeight: CGFloat = 0
 
+    /// The thread as it was when a message was sent, held while the
+    /// keyboard goes: a row or a status arriving mid-dismissal moved the
+    /// thread against the keyboard's own motion. Only the send button's
+    /// spinner changes meanwhile.
+    @State private var held: Held?
+
+    struct Held {
+        let messages: [TranscriptMessage]
+        let busy: Bool
+        let status: [ActivityItem]
+        let activity: String?
+        let error: String?
+    }
+
+    /// Long enough for the keyboard to have gone.
+    static var holdAfterSend: UInt64 { 550_000_000 }
+
+    private func hold(_ action: @escaping () -> Void) -> () -> Void {
+        {
+            held = Held(messages: messages, busy: busy, status: status, activity: activity, error: error)
+            action()
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: Self.holdAfterSend)
+                held = nil
+            }
+        }
+    }
+
     public var body: some View {
-        TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
+        let shown = held ?? Held(messages: messages, busy: busy, status: status, activity: activity, error: error)
+        TranscriptView(messages: shown.messages, busy: shown.busy, status: shown.status, activity: shown.activity, error: shown.error,
                        emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
                        bottomInset: composerHeight)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
-                              attachmentCount: attachmentCount, send: send, stop: stop, steer: steer,
+                              attachmentCount: attachmentCount, send: hold(send), stop: stop, steer: steer.map(hold),
                               sending: sending, controls: controls, attachments: attachments)
                     .background(GeometryReader { geometry in
                         Color.clear
