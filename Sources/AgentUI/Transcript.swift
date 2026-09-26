@@ -147,7 +147,6 @@ public struct TranscriptView: View {
             // animated.
             .onChange(of: messages) { _, new in
                 let appended = Self.appends(new, to: shown)
-                NSLog("%@", "VISOR_LIST change appended=\(appended) count \(shown.count)->\(new.count) last \(shown.last?.id.prefix(20) ?? "-")->\(new.last?.id.prefix(20) ?? "-") holdTop=\(holdTop)") // DEBUG
                 if appended {
                     holdTop = true
                     shown = new
@@ -157,11 +156,9 @@ public struct TranscriptView: View {
                     // measures against the old and goes nowhere.
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 60_000_000)
-                        NSLog("%@", "VISOR_LIST scroll") // DEBUG
                         withAnimation(.smooth(duration: 0.3)) { toBottom() }
                         try? await Task.sleep(nanoseconds: 350_000_000)
                         holdTop = false
-                        NSLog("%@", "VISOR_LIST done") // DEBUG
                     }
                 } else {
                     let moved = new.last?.id != shown.last?.id
@@ -176,7 +173,7 @@ public struct TranscriptView: View {
             // While rows arrive, their own scroll takes the thread to the
             // bottom: a second scroll in the middle of it (the composer
             // shrinking as the words sent leave it) fought it.
-            .onVisibleHeightChange { NSLog("%@", "VISOR_LIST height holdTop=\(holdTop)"); if !holdTop { withAnimation(.smooth(duration: 0.35)) { toBottom() } } } // DEBUG
+            .onVisibleHeightChange { if !holdTop { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
