@@ -137,7 +137,15 @@ public struct TranscriptView: View {
                     case .calls(let run):
                         ToolCallsRow(run: run).transcriptCell().id(block.id)
                     case .stream(let stream):
-                        AssistantBubble(text: stream.text, streaming: true).transcriptCell().id(stream.id)
+                        // A reply grows by what came since the last
+                        // frame: eased, so the thread slides up with it.
+                        // Only the growth: the row arrives in place, as
+                        // every row does — animating the stack's own
+                        // changes has it re-estimate the rows off screen
+                        // mid-animation, and the thread lurches.
+                        AssistantBubble(text: stream.text, streaming: true)
+                            .animation(.easeOut(duration: 0.3), value: stream.text.count)
+                            .transcriptCell().id(stream.id)
                     }
                 }
                 // The footer: what is not the record — what the turn is
@@ -148,12 +156,6 @@ public struct TranscriptView: View {
             }
         }
         .bottomAnchored()
-        // A row arriving or a reply growing moves the thread up by what
-        // it adds: eased, not in one frame. The rows a transcript opens
-        // with arrive in place.
-        .animation(populated ? .easeOut(duration: 0.25) : nil, value: layoutKey)
-        .onAppear { populated = !messages.isEmpty }
-        .onChange(of: messages.isEmpty) { empty in if !empty { populated = true } }
         .sheet(isPresented: Binding(get: { opened.url != nil },
                                     set: { if !$0 { opened.url = nil } })) {
             if let url = opened.url { ImageViewer(url: url) }
@@ -166,12 +168,6 @@ public struct TranscriptView: View {
         .onChange(of: messages.last?.id) { _ in
             if messages.last?.role == .user { toBottom() }
         }
-    }
-
-    /// What changes the thread's layout: its rows, and how much each
-    /// reply being written has.
-    private var layoutKey: [String] {
-        rows.map(\.id) + streams.map { $0.id + ":" + String($0.text.count) }
     }
 
     /// The record's blocks, then the streams it does not carry yet. What
