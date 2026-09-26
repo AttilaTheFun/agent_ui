@@ -38,6 +38,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
+    /// Between a send and the field's renewal on a phone: the field still
+    /// draws the words just sent, which are now shown as sending, so it
+    /// is not shown.
+    @State private var sentText = false
 
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
@@ -87,9 +91,11 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         guard draft.isEmpty else { return }
         #if os(iOS)
         focused = false
+        sentText = true
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 400_000_000)
             fieldGeneration &+= 1
+            sentText = false
         }
         #else
         fieldGeneration &+= 1
@@ -157,6 +163,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     .padding(.top, AgentComposerMetrics.inner)
                     .padding(.bottom, AgentComposerMetrics.textInset)
                     .focused($focused)
+                    .opacity(sentText ? 0 : 1)
                     .id(fieldGeneration)
                     .onSubmit { if canSend { fire(send) } }
                     // Return sends; Shift-Return is a newline. Where keys

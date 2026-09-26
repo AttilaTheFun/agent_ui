@@ -148,6 +148,12 @@ public struct TranscriptView: View {
             }
         }
         .bottomAnchored()
+        // A row arriving or a reply growing moves the thread up by what
+        // it adds: eased, not in one frame. The rows a transcript opens
+        // with arrive in place.
+        .animation(populated ? .easeOut(duration: 0.25) : nil, value: layoutKey)
+        .onAppear { populated = !messages.isEmpty }
+        .onChange(of: messages.isEmpty) { empty in if !empty { populated = true } }
         .sheet(isPresented: Binding(get: { opened.url != nil },
                                     set: { if !$0 { opened.url = nil } })) {
             if let url = opened.url { ImageViewer(url: url) }
@@ -160,6 +166,12 @@ public struct TranscriptView: View {
         .onChange(of: messages.last?.id) { _ in
             if messages.last?.role == .user { toBottom() }
         }
+    }
+
+    /// What changes the thread's layout: its rows, and how much each
+    /// reply being written has.
+    private var layoutKey: [String] {
+        rows.map(\.id) + streams.map { $0.id + ":" + String($0.text.count) }
     }
 
     /// The record's blocks, then the streams it does not carry yet. What
