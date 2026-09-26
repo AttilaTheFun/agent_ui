@@ -62,6 +62,8 @@ public struct StreamedMessage: Identifiable, Equatable {
 public struct TranscriptView: View {
     /// Whether rows have been shown once: what turns the animations on.
     @State private var populated = false
+    /// Every row the thread has drawn.
+    @State private var seen: Set<String> = []
     let messages: [TranscriptMessage]
     let streams: [StreamedMessage]
     let activity: String?
@@ -130,15 +132,26 @@ public struct TranscriptView: View {
                 // The record, a run of tool calls folded into one row that
                 // opens a sheet; then the replies still being written, so
                 // a reply's finished row takes its stream's place.
+                let arriving = arrivingIDs
                 ForEach(rows) { block in
-                    switch block {
-                    case .message(let message):
-                        TranscriptRow(message: message).transcriptCell().id(message.id)
-                    case .calls(let run):
-                        ToolCallsRow(run: run).transcriptCell().id(block.id)
-                    case .stream(let stream):
-                        StreamingReply(text: stream.text).transcriptCell().id(stream.id)
+                    Group {
+                        // A reply is one view whether it is being written
+                        // or on the record, so it keeps showing its words
+                        // at its own pace across the change.
+                        if let reply = block.reply {
+                            ReplyRow(text: reply.text, streaming: reply.streaming)
+                        } else {
+                            Arriving(arriving.contains(block.id)) {
+                                switch block {
+                                case .message(let message): TranscriptRow(message: message)
+                                case .calls(let run): ToolCallsRow(run: run)
+                                case .stream: EmptyView()
+                                }
+                            }
+                        }
                     }
+                    .transcriptCell()
+                    .id(block.id)
                 }
                 // The footer: what is not the record — what the turn is
                 // doing, an error — and the room above the composer.
@@ -148,6 +161,11 @@ public struct TranscriptView: View {
             }
         }
         .bottomAnchored()
+        .onAppear { if !messages.isEmpty { seen = Set(rows.map(\.id)); populated = true } }
+        .onChange(of: rows.map(\.id)) { ids in
+            if !populated, !messages.isEmpty { populated = true }
+            seen.formUnion(ids)
+        }
         .sheet(isPresented: Binding(get: { opened.url != nil },
                                     set: { if !$0 { opened.url = nil } })) {
             if let url = opened.url { ImageViewer(url: url) }
@@ -160,6 +178,16 @@ public struct TranscriptView: View {
         .onChange(of: messages.last?.id) { _ in
             if messages.last?.role == .user { toBottom() }
         }
+    }
+
+    /// The rows new at the end of the thread since it was last drawn:
+    /// they grow into place. Not the rows it opened with, nor those put
+    /// before the first (earlier messages loaded).
+    private var arrivingIDs: Set<String> {
+        guard populated else { return [] }
+        let ids = rows.map(\.id)
+        guard let last = ids.lastIndex(where: seen.contains) else { return [] }
+        return Set(ids[(last + 1)...])
     }
 
     /// The record's blocks, then the streams it does not carry yet. What
@@ -194,6 +222,17 @@ public enum TranscriptBlock: Identifiable {
     /// `.message` with the same id in the same place, and the row changes
     /// rather than one going and another arriving.
     case stream(StreamedMessage)
+
+    /// A reply in words only — being written, or on the record — drawn by
+    /// the one view that shows its words at its own pace.
+    var reply: (text: String, streaming: Bool)? {
+        switch self {
+        case .stream(let stream): (stream.text, true)
+        case .message(let message) where message.role == .assistant && message.activities.isEmpty && !message.text.isEmpty:
+            (message.text, false)
+        default: nil
+        }
+    }
 
     public var id: String {
         switch self {
@@ -449,34 +488,88 @@ public struct AssistantBubble: View {
     }
 }
 
-/// A reply being written, shown at a steady pace. Its words arrive in
-/// bursts — a few times a second, several lines at once — and shown as
-/// they come the reply would grow, and the thread move, by the burst. What
-/// has come is shown over the next moment instead, a few words at a time,
-/// so the reply grows a line at a time whatever the cadence of its words.
-struct StreamingReply: View {
+/// A reply, shown at a steady pace while it is written. Its words arrive
+/// in bursts — a few times a second, several lines at once — and shown as
+/// they come the reply would grow, and the thread move, by the burst.
+/// Instead the words shown catch up with the words come, a little each
+/// frame and faster the further behind, so the reply grows a line at a
+/// time at the pace it is written. When the record takes over (the same
+/// view, with `streaming` false) the words still to show are shown the
+/// same way, and then the reply is the record's, with its actions. A
+/// reply that was never streamed here is shown whole.
+struct ReplyRow: View {
     let text: String
-    @State private var shown = 0
+    let streaming: Bool
+    /// How much is shown; nil for all of it.
+    @State private var shown: Int?
+    /// How much there is to show, kept for the pacing loop.
+    @State private var target = 0
 
-    /// Steps a burst is shown in, and the time between them: a burst is
-    /// shown in about the time the next one takes to come.
-    static let steps = 8
-    static let step: UInt64 = 40_000_000
-
-    var body: some View {
-        AssistantBubble(text: String(text.prefix(shown)), streaming: true)
-            .task(id: text.count) { await reveal() }
+    init(text: String, streaming: Bool) {
+        self.text = text
+        self.streaming = streaming
+        _shown = State(initialValue: streaming ? 0 : nil)
+        _target = State(initialValue: text.count)
     }
 
-    private func reveal() async {
-        let target = text.count
-        guard target > shown else { shown = target; return }
-        let start = shown
-        for index in 1...Self.steps {
-            try? await Task.sleep(nanoseconds: Self.step)
-            if Task.isCancelled { return }
-            shown = start + (target - start) * index / Self.steps
-        }
+    static let frame: UInt64 = 33_000_000
+
+    var body: some View {
+        AssistantBubble(text: shown.map { String(text.prefix($0)) } ?? text, streaming: streaming || shown != nil)
+            .onChange(of: text.count) { count in target = count }
+            .task {
+                guard shown != nil else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: Self.frame)
+                    guard let current = shown else { return }
+                    let behind = target - current
+                    if behind > 0 {
+                        shown = current + max(3, behind / 8)
+                    } else if !streaming {
+                        shown = nil
+                        return
+                    }
+                }
+            }
+    }
+}
+
+/// A row that grows into place when it arrives at the end of the thread:
+/// the thread, held at its bottom, slides up by the row's height over a
+/// moment rather than all at once. Stepped by hand, not animated: an
+/// animation in the scroll view's stack has it re-estimate the rows off
+/// screen as it runs, and the thread lurches.
+struct Arriving<Content: View>: View {
+    let content: Content
+    @State private var height: CGFloat = 0
+    @State private var progress: CGFloat
+
+    init(_ arriving: Bool, @ViewBuilder content: () -> Content) {
+        self.content = content()
+        _progress = State(initialValue: arriving ? 0 : 1)
+    }
+
+    var body: some View {
+        content
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { geometry in
+                Color.clear
+                    .onAppear { height = geometry.size.height }
+                    .onChange(of: geometry.size.height) { value in height = value }
+            })
+            .frame(height: progress < 1 ? height * progress : nil, alignment: .top)
+            .clipped()
+            .task {
+                guard progress < 1 else { return }
+                let steps = 7
+                for index in 1...steps {
+                    try? await Task.sleep(nanoseconds: 30_000_000)
+                    if Task.isCancelled { break }
+                    let t = CGFloat(index) / CGFloat(steps)
+                    progress = 1 - (1 - t) * (1 - t)
+                }
+                progress = 1
+            }
     }
 }
 
