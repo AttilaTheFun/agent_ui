@@ -126,9 +126,14 @@ public struct TranscriptView: View {
             // The bottom stays put as the list or its rows change size.
             .bottomAnchoredOnResize()
             .onAppear(perform: toBottom)
-            // A message arrived: once it has been laid out, the thread is
-            // taken to the bottom.
-            .onChange(of: messages.count) { _ in afterLayout { withAnimation { toBottom() } } }
+            // A message arrived at the end: once it is laid out, the thread
+            // slides to the bottom. Anything else (the rows replaced whole,
+            // earlier ones loaded) is taken to the bottom without a slide,
+            // which would run across all of it.
+            .onChange(of: messages.last?.id) { old, _ in
+                let appended = old.map { id in messages.contains { $0.id == id } } ?? false
+                afterLayout { if appended { withAnimation { toBottom() } } else { toBottom() } }
+            }
             .onChange(of: bottomInset) { _ in afterLayout(toBottom) }
             // The keyboard coming or going: the thread moves with it.
             .keyboardTracking(toBottom)
