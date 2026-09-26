@@ -151,15 +151,17 @@ public struct TranscriptView: View {
                 if appended {
                     holdTop = true
                     shown = new
-                    // The scroll once the list has the rows: it takes a
-                    // change a pass after the view's, and a scroll before
-                    // then finds nothing new to go to (and in the same
-                    // update iOS 26 throws on the target).
-                    afterLayout {
-                        afterLayout {
-                            NSLog("%@", "VISOR_LIST scroll") // DEBUG
-                            withAnimation(.smooth(duration: 0.3)) { toBottom() } completion: { holdTop = false; NSLog("%@", "VISOR_LIST done") } // DEBUG
-                        }
+                    // The scroll once the list has the rows and the box its
+                    // new height (the words sent leave it in the same
+                    // change): a scroll made before either has landed
+                    // measures against the old and goes nowhere.
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 60_000_000)
+                        NSLog("%@", "VISOR_LIST scroll") // DEBUG
+                        withAnimation(.smooth(duration: 0.3)) { toBottom() }
+                        try? await Task.sleep(nanoseconds: 350_000_000)
+                        holdTop = false
+                        NSLog("%@", "VISOR_LIST done") // DEBUG
                     }
                 } else {
                     let moved = new.last?.id != shown.last?.id
