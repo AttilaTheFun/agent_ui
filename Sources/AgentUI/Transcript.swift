@@ -169,7 +169,10 @@ public struct TranscriptView: View {
             // going, the composer growing: the thread eases to the bottom
             // over about the time the keyboard takes, rather than jumping
             // there while the keyboard is still on its way.
-            .onVisibleHeightChange { withAnimation(.smooth(duration: 0.35)) { toBottom() } }
+            // While rows arrive, their own scroll takes the thread to the
+            // bottom: a second scroll in the middle of it (the composer
+            // shrinking as the words sent leave it) fought it.
+            .onVisibleHeightChange { if !holdTop { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
