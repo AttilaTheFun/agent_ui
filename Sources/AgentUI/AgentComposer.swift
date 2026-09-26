@@ -56,9 +56,16 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
 
     /// Sends; the keyboard stays up and the field keeps focus, to write
-    /// the next message.
+    /// the next message. On a Mac the field is renewed to read the
+    /// cleared draft: its multi-line field went on drawing the words just
+    /// sent while focused.
     private func fire(_ action: @escaping () -> Void) {
         action()
+        #if os(macOS)
+        guard draft.isEmpty else { return }
+        fieldGeneration &+= 1
+        focused = true
+        #endif
     }
 
     public var body: some View {
