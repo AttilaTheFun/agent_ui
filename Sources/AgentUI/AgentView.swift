@@ -8,10 +8,8 @@ import SwiftUI
 /// controls and attachments are the app's views.
 public struct AgentView<Controls: View, Attachments: View>: View {
     let messages: [TranscriptMessage]
-    let streams: [StreamedMessage]
-    let activity: String?
-    /// The turn's streamed status lines so far, for the footer.
     let status: [ActivityItem]
+    let activity: String?
     let error: String?
     let emptyTitle: String
     let emptyBody: String
@@ -21,53 +19,45 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     @Binding var draft: String
     let placeholder: String
     let busy: Bool
+    let sending: Bool
     let attachmentCount: Int
     let send: () -> Void
     let stop: () -> Void
     /// Interrupt the turn and say what is written now; nil leaves a busy
     /// composer with only Stop.
     let steer: (() -> Void)?
-    /// Said and not on the record yet: shown in the composer.
-    let outgoing: [OutgoingMessage]
-    /// Takes a queued message back into the field.
-    let edit: ((OutgoingMessage) -> Void)?
     let controls: () -> Controls
     let attachments: () -> Attachments
 
     /// - Parameters:
-    ///   - streams: the replies being written, or written and not yet on the record, one row each by message id.
-    ///   - activity: what the agent is doing right now ("Building"), or nothing.
-    ///   - error: the last failure, under the transcript.
-    ///   - emptyTitle/emptyBody/emptyFootnote: the empty state.
-    ///   - busy: the agent is working; the composer offers Stop.
-    ///   - outgoing: messages said and not on the record yet, shown in the composer.
-    ///   - edit: takes a queued message back into the field.
-    public init(messages: [TranscriptMessage], streams: [StreamedMessage] = [], activity: String? = nil, status: [ActivityItem] = [],
+    ///   - messages: the record; the only thing that adds rows.
+    ///   - status/activity: what the turn is doing, in the status row under the thread.
+    ///   - error: the last failure, in the status row while idle.
+    ///   - busy: the agent is working; the status row spins and the composer offers Stop.
+    ///   - sending: a message sent is not on the record yet; the send button says so.
+    public init(messages: [TranscriptMessage], status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String,
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
-                busy: Bool, attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
-                steer: (() -> Void)? = nil, outgoing: [OutgoingMessage] = [],
-                edit: ((OutgoingMessage) -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
+                busy: Bool, sending: Bool = false, attachmentCount: Int = 0, send: @escaping () -> Void,
+                stop: @escaping () -> Void, steer: (() -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
-        self.loadEarlier = loadEarlier
         self.messages = messages
-        self.streams = streams
-        self.activity = activity
         self.status = status
+        self.activity = activity
         self.error = error
         self.emptyTitle = emptyTitle
         self.emptyBody = emptyBody
         self.emptyFootnote = emptyFootnote
+        self.loadEarlier = loadEarlier
         self._draft = draft
         self.placeholder = placeholder
         self.busy = busy
+        self.sending = sending
         self.attachmentCount = attachmentCount
         self.send = send
         self.stop = stop
         self.steer = steer
-        self.outgoing = outgoing
-        self.edit = edit
         self.controls = controls
         self.attachments = attachments
     }
@@ -77,16 +67,13 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     @State private var composerHeight: CGFloat = 0
 
     public var body: some View {
-        // The thread is the record and the replies being written; what
-        // the turn is doing, a failure and what is on its way are the
-        // composer's, over its field.
-        TranscriptView(messages: messages, streams: streams, activity: nil, status: [], error: nil,
+        TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                        emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
                        bottomInset: composerHeight)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: send, stop: stop, steer: steer,
-                              status: status, activity: activity, error: error, outgoing: outgoing, edit: edit, controls: controls, attachments: attachments)
+                              sending: sending, controls: controls, attachments: attachments)
                     .background(GeometryReader { geometry in
                         Color.clear
                             .onAppear { composerHeight = geometry.size.height }
@@ -98,11 +85,11 @@ public struct AgentView<Controls: View, Attachments: View>: View {
 }
 
 extension AgentView where Controls == EmptyView, Attachments == EmptyView {
-    public init(messages: [TranscriptMessage], streams: [StreamedMessage] = [], activity: String? = nil,
+    public init(messages: [TranscriptMessage], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String,
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
                 busy: Bool, send: @escaping () -> Void, stop: @escaping () -> Void, loadEarlier: (() -> Void)? = nil) {
-        self.init(messages: messages, streams: streams, activity: activity, error: error,
+        self.init(messages: messages, activity: activity, error: error,
                   emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, draft: draft,
                   placeholder: placeholder, busy: busy, send: send, stop: stop, steer: nil, loadEarlier: loadEarlier,
                   controls: { EmptyView() }, attachments: { EmptyView() })

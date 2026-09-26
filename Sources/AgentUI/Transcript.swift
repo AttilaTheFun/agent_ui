@@ -49,153 +49,98 @@ public struct TranscriptMessage: Identifiable, Equatable {
     }
 }
 
-/// The scrolling transcript, pinned to its bottom as messages arrive.
-/// An assistant message as it streams, or streamed and not yet on the
-/// record: its own row, by the message's id, never run together with the
-/// message before it.
-public struct StreamedMessage: Identifiable, Equatable {
-    public let id: String
-    public let text: String
-    public init(id: String, text: String) { self.id = id; self.text = text }
-}
-
+/// The transcript: the record's messages, and under them one status row
+/// that is always there. The rows change only when the record does; what
+/// the turn is doing changes the status row's words, never its height.
+/// The status row is what the thread scrolls to: on opening, when a
+/// message arrives, and with the keyboard.
 public struct TranscriptView: View {
-    /// Whether rows have been shown once: what turns the animations on.
-    @State private var populated = false
-    /// Every row the thread has drawn.
-    @State private var seen: Set<String> = []
     let messages: [TranscriptMessage]
-    let streams: [StreamedMessage]
-    let activity: String?
-    /// The turn's streamed status so far — tool calls, subagents, shells,
-    /// thinking — that is not part of the record: a footer under the
-    /// thread, the newest line live. Empty between turns.
+    /// The agent is working: the status row shows its spinner.
+    let busy: Bool
+    /// What the turn is doing now (tool calls, subagents, the task list).
     let status: [ActivityItem]
+    /// A label for the status row when nothing in `status` is running
+    /// ("Thinking…", or the road to the computer while it is down).
+    let activity: String?
+    /// The last failure, in the status row while the agent is idle.
     let error: String?
     let emptyTitle: String
     let emptyBody: String
     let emptyFootnote: String?
-    /// Given when the thread goes back further than what is shown: a row
-    /// at the top that asks for more.
+    /// Given when the thread goes back further than what is shown.
     let loadEarlier: (() -> Void)?
-    /// How much of the bottom the composer covers. When it grows — a
-    /// message running to more lines — the last row would slip under it;
-    /// the list is pinned to its bottom again as this changes.
+    /// How much of the bottom the composer covers; the thread is scrolled
+    /// to its bottom again when this changes.
     let bottomInset: CGFloat
 
-    public init(messages: [TranscriptMessage], streams: [StreamedMessage] = [], activity: String?, status: [ActivityItem] = [],
-                error: String?, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
+    public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
+                error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
                 loadEarlier: (() -> Void)? = nil, bottomInset: CGFloat = 0) {
-        self.loadEarlier = loadEarlier
-        self.bottomInset = bottomInset
         self.messages = messages
-        self.streams = streams
+        self.busy = busy
         self.status = status
         self.activity = activity
         self.error = error
         self.emptyTitle = emptyTitle
         self.emptyBody = emptyBody
         self.emptyFootnote = emptyFootnote
+        self.loadEarlier = loadEarlier
+        self.bottomInset = bottomInset
     }
 
     @ObservedObject private var opened = TranscriptImageOpen.shared
     @ObservedObject private var openedCalls = ToolCallsOpen.shared
 
-    public var body: some View {
-        #if canImport(UIKit) || canImport(AppKit)
-        EdgeScrolled { toBottom in transcript(toBottom) }
-        #else
-        ScrollViewReader { proxy in transcript { proxy.scrollTo("bottom", anchor: .bottom) } }
-        #endif
-    }
+    static let bottom = "status"
 
-    /// The transcript, given how to scroll it to its bottom.
-    private func transcript(_ toBottom: @escaping () -> Void) -> some View {
-        // A lazy stack in a scroll view anchored at its bottom edge: rows
-        // are made as they come on screen, and the bottom stays where it
-        // is whatever changes size — a row arriving or growing, the
-        // keyboard, the composer — with nothing scrolled by hand. A List
-        // sizes its rows by estimate and corrects them as they are laid
-        // out, so a scroll to a row landed short and the thread jumped.
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                if let loadEarlier, !messages.isEmpty {
-                    Button(action: loadEarlier) {
-                        Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
+    public var body: some View {
+        ScrollViewReader { proxy in
+            let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
+            List {
+                Group {
+                    if let loadEarlier, !messages.isEmpty {
+                        Button(action: loadEarlier) {
+                            Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .transcriptCell()
                     }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity)
-                    .transcriptCell()
-                    .id("earlier")
-                }
-                if messages.isEmpty { emptyState }
-                // The record, a run of tool calls folded into one row that
-                // opens a sheet; then the replies still being written, so
-                // a reply's finished row takes its stream's place.
-                let arriving = arrivingIDs
-                ForEach(rows) { block in
-                    Group {
-                        // A reply is one view whether it is being written
-                        // or on the record, so it keeps showing its words
-                        // at its own pace across the change.
-                        if let reply = block.reply {
-                            ReplyRow(text: reply.text, streaming: reply.streaming)
-                        } else {
-                            Arriving(arriving.contains(block.id)) {
-                                switch block {
-                                case .message(let message): TranscriptRow(message: message)
-                                case .calls(let run): ToolCallsRow(run: run)
-                                case .stream: EmptyView()
-                                }
-                            }
+                    if messages.isEmpty { emptyState }
+                    ForEach(TranscriptBlock.blocks(messages)) { block in
+                        switch block {
+                        case .message(let message): TranscriptRow(message: message).transcriptCell()
+                        case .calls(let run): ToolCallsRow(run: run).transcriptCell()
                         }
                     }
-                    .transcriptCell()
-                    .id(block.id)
+                    StatusRow(busy: busy, status: status, activity: activity, error: error)
+                        .transcriptCell()
+                        .id(Self.bottom)
                 }
-                // The footer: what is not the record — what the turn is
-                // doing, an error — and the room above the composer.
-                EphemeralFooter(status: status, activity: activity, error: error)
-                    .transcriptCell()
-                    .id("bottom")
+                .listRowSeparator(.hidden)
+                .plainListRow()
+            }
+            .listStyle(.plain)
+            .noMinimumRowHeight()
+            // The bottom stays put as the list or its rows change size.
+            .bottomAnchoredOnResize()
+            .onAppear(perform: toBottom)
+            // A message arrived: once it has been laid out, the thread is
+            // taken to the bottom.
+            .onChange(of: messages.count) { _ in afterLayout { withAnimation { toBottom() } } }
+            .onChange(of: bottomInset) { _ in afterLayout(toBottom) }
+            // The keyboard coming or going: the thread moves with it.
+            .keyboardTracking(toBottom)
+            .sheet(isPresented: Binding(get: { opened.url != nil },
+                                        set: { if !$0 { opened.url = nil } })) {
+                if let url = opened.url { ImageViewer(url: url) }
+            }
+            .sheet(isPresented: Binding(get: { openedCalls.run != nil },
+                                        set: { if !$0 { openedCalls.run = nil } })) {
+                if let run = openedCalls.run { ToolCallsSheet(run: run) }
             }
         }
-        .bottomAnchored()
-        .keptAtBottom(toBottom)
-        .onAppear { if !messages.isEmpty { seen = Set(rows.map(\.id)); populated = true } }
-        .onChange(of: rows.map(\.id)) { ids in
-            if !populated, !messages.isEmpty { populated = true }
-            seen.formUnion(ids)
-        }
-        .sheet(isPresented: Binding(get: { opened.url != nil },
-                                    set: { if !$0 { opened.url = nil } })) {
-            if let url = opened.url { ImageViewer(url: url) }
-        }
-        .sheet(isPresented: Binding(get: { openedCalls.run != nil },
-                                    set: { if !$0 { openedCalls.run = nil } })) {
-            if let run = openedCalls.run { ToolCallsSheet(run: run) }
-        }
-        // A message sent is read at the bottom, wherever the thread was.
-        .onChange(of: messages.last?.id) { _ in
-            if messages.last?.role == .user { toBottom() }
-        }
-    }
-
-    /// The rows new at the end of the thread since it was last drawn:
-    /// they grow into place. Not the rows it opened with, nor those put
-    /// before the first (earlier messages loaded).
-    private var arrivingIDs: Set<String> {
-        guard populated else { return [] }
-        let ids = rows.map(\.id)
-        guard let last = ids.lastIndex(where: seen.contains) else { return [] }
-        return Set(ids[(last + 1)...])
-    }
-
-    /// The record's blocks, then the streams it does not carry yet. What
-    /// is said and not on the record yet is the composer's to show.
-    private var rows: [TranscriptBlock] {
-        let carried = Set(messages.map(\.id))
-        return TranscriptBlock.blocks(messages) + streams.filter { !carried.contains($0.id) }.map(TranscriptBlock.stream)
     }
 
     private var emptyState: some View {
@@ -210,6 +155,62 @@ public struct TranscriptView: View {
     }
 }
 
+/// The transcript's last row, always there and always one line tall: a
+/// spinner and what the agent is doing while it works — the latest tool
+/// running, else the task under way, else the label ("Thinking…") — and
+/// the last failure while it is idle. Hidden, not removed, when there is
+/// nothing to say, so the thread never changes height for it.
+struct StatusRow: View {
+    let busy: Bool
+    let status: [ActivityItem]
+    let activity: String?
+    let error: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                if let line {
+                    ProgressView().controlSize(.small)
+                    if let symbol = line.symbol {
+                        Image(systemName: symbol).foregroundColor(.secondary).font(.footnote)
+                    }
+                    Text(line.label).font(.footnote).foregroundColor(.secondary)
+                } else if let error {
+                    Text(error).font(.footnote).foregroundColor(.red)
+                }
+                Spacer(minLength: 0)
+            }
+            .lineLimit(1)
+            .frame(height: 20)
+            .padding(.horizontal, TranscriptMetrics.edgeInset)
+            Color.clear.frame(height: TranscriptMetrics.bottomGap)
+        }
+    }
+
+    private var line: (label: String, symbol: String?)? {
+        if let item = status.last(where: { $0.running && $0.kind != .tasks }) {
+            return (item.label, Self.symbol(for: item.kind))
+        }
+        guard busy || activity != nil else { return nil }
+        if let tasks = status.last(where: { $0.kind == .tasks })?.tasks,
+           let index = tasks.firstIndex(where: { $0.state == .active }) {
+            return ("\(tasks[index].title) (\(index + 1) of \(tasks.count))", Self.symbol(for: .tasks))
+        }
+        return (activity ?? "Thinking…", nil)
+    }
+
+    static func symbol(for kind: ActivityItem.Kind) -> String {
+        switch kind {
+        case .thinking: "brain"
+        case .shell: "terminal"
+        case .monitor: "eye"
+        case .subagent: "person.2"
+        case .tool: "wrench.and.screwdriver"
+        case .tasks: "checklist"
+        }
+    }
+}
+
 /// What the transcript draws in one slot: a message, or a run of tool
 /// calls folded into one row. A run is consecutive messages that are only
 /// tool calls and their results — an assistant row with activities and no
@@ -218,28 +219,11 @@ public struct TranscriptView: View {
 public enum TranscriptBlock: Identifiable {
     case message(TranscriptMessage)
     case calls([TranscriptMessage])
-    /// A reply still streaming, under the id its finished message will
-    /// have: when the record carries that message, the block becomes a
-    /// `.message` with the same id in the same place, and the row changes
-    /// rather than one going and another arriving.
-    case stream(StreamedMessage)
-
-    /// A reply in words only — being written, or on the record — drawn by
-    /// the one view that shows its words at its own pace.
-    var reply: (text: String, streaming: Bool)? {
-        switch self {
-        case .stream(let stream): (stream.text, true)
-        case .message(let message) where message.role == .assistant && message.activities.isEmpty && !message.text.isEmpty:
-            (message.text, false)
-        default: nil
-        }
-    }
 
     public var id: String {
         switch self {
         case .message(let message): message.id
         case .calls(let run): "calls-" + (run.first?.id ?? "")
-        case .stream(let stream): stream.id
         }
     }
 
@@ -481,113 +465,11 @@ public struct AssistantBubble: View {
             MarkdownText(text)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            // Nothing to act on until the words have stopped arriving; the
-            // room for it is kept while they arrive, so the reply does not
-            // grow by it when they stop.
-            if !text.isEmpty || streaming {
-                MessageActions(text: text)
-                    .opacity(streaming ? 0 : 1)
-                    .disabled(streaming)
-                    .accessibilityHidden(streaming)
-            }
+            // Nothing to act on until the words have stopped arriving.
+            if !streaming, !text.isEmpty { MessageActions(text: text) }
         }
         .padding(.horizontal, TranscriptMetrics.edgeInset)
         .opacity(streaming ? 0.85 : 1)
-    }
-}
-
-/// A reply, shown at a steady pace while it is written. Its words arrive
-/// in bursts — a few times a second, several lines at once — and shown as
-/// they come the reply would grow, and the thread move, by the burst.
-/// Instead the words shown catch up with the words come, a little each
-/// frame and faster the further behind, so the reply grows a line at a
-/// time at the pace it is written. When the record takes over (the same
-/// view, with `streaming` false) the words still to show are shown the
-/// same way, and then the reply is the record's, with its actions. A
-/// reply that was never streamed here is shown whole.
-struct ReplyRow: View {
-    let text: String
-    let streaming: Bool
-    /// How much is shown; nil for all of it.
-    @State private var shown: Int?
-    /// How much there is to show, and whether more is coming, kept for
-    /// the pacing loop (which would otherwise see them as they were when
-    /// it began).
-    @State private var target = 0
-    @State private var writing: Bool
-
-    init(text: String, streaming: Bool) {
-        self.text = text
-        self.streaming = streaming
-        _shown = State(initialValue: streaming ? 0 : nil)
-        _target = State(initialValue: text.count)
-        _writing = State(initialValue: streaming)
-    }
-
-    static let frame: UInt64 = 33_000_000
-    /// Characters a frame at most: about 1,300 a second.
-    static let fastest = 44
-
-    var body: some View {
-        AssistantBubble(text: shown.map { String(text.prefix($0)) } ?? text, streaming: streaming || shown != nil)
-            .onChange(of: text.count) { count in target = count }
-            .onChange(of: streaming) { value in writing = value }
-            .task {
-                guard shown != nil else { return }
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: Self.frame)
-                    guard let current = shown else { return }
-                    let behind = target - current
-                    if behind > 0 {
-                        // Faster the further behind, to a steady top speed
-                        // (about as fast as a model writes): a burst is
-                        // shown over the next moments, not in one.
-                        shown = current + min(max(3, behind / 8), Self.fastest)
-                    } else if !writing {
-                        shown = nil
-                        return
-                    }
-                }
-            }
-    }
-}
-
-/// A row that grows into place when it arrives at the end of the thread:
-/// the thread, held at its bottom, slides up by the row's height over a
-/// moment rather than all at once. Stepped by hand, not animated: an
-/// animation in the scroll view's stack has it re-estimate the rows off
-/// screen as it runs, and the thread lurches.
-struct Arriving<Content: View>: View {
-    let content: Content
-    @State private var height: CGFloat = 0
-    @State private var progress: CGFloat
-
-    init(_ arriving: Bool, @ViewBuilder content: () -> Content) {
-        self.content = content()
-        _progress = State(initialValue: arriving ? 0 : 1)
-    }
-
-    var body: some View {
-        content
-            .fixedSize(horizontal: false, vertical: true)
-            .background(GeometryReader { geometry in
-                Color.clear
-                    .onAppear { height = geometry.size.height }
-                    .onChange(of: geometry.size.height) { value in height = value }
-            })
-            .frame(height: progress < 1 ? height * progress : nil, alignment: .top)
-            .clipped()
-            .task {
-                guard progress < 1 else { return }
-                let steps = 7
-                for index in 1...steps {
-                    try? await Task.sleep(nanoseconds: 30_000_000)
-                    if Task.isCancelled { break }
-                    let t = CGFloat(index) / CGFloat(steps)
-                    progress = 1 - (1 - t) * (1 - t)
-                }
-                progress = 1
-            }
     }
 }
 
@@ -681,69 +563,6 @@ public struct ActivityRow: View {
     }
 }
 
-/// Under the record: the ephemeral state, and the gap above the composer.
-struct EphemeralFooter: View {
-    let status: [ActivityItem]
-    let activity: String?
-    let error: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if !status.isEmpty || activity != nil {
-                ActivityList(items: status, current: activity)
-                    .padding(.vertical, 6)
-            }
-            if let error {
-                Text(error).font(.footnote).foregroundColor(.red).padding(.horizontal)
-            }
-            Color.clear.frame(height: TranscriptMetrics.bottomGap)
-        }
-    }
-}
-
-/// What the turn is doing, in one line: the latest thing still running,
-/// else the task under way, else the current label (thinking, the road to
-/// the computer). One line whatever the turn does, so the footer keeps its
-/// height as calls come and go; the calls themselves are the record's,
-/// grouped there.
-public struct ActivityList: View {
-    let items: [ActivityItem]
-    let current: String?
-
-    public init(items: [ActivityItem], current: String?) {
-        self.items = items
-        self.current = current
-    }
-
-    public var body: some View {
-        if let line {
-            ActivityRow(label: line.label, running: true, symbol: line.symbol)
-        }
-    }
-
-    private var line: (label: String, symbol: String?)? {
-        if let item = items.last(where: { $0.running && $0.kind != .tasks }) {
-            return (item.label, Self.symbol(for: item.kind))
-        }
-        if let tasks = items.last(where: { $0.kind == .tasks })?.tasks,
-           let index = tasks.firstIndex(where: { $0.state == .active }) {
-            return ("\(tasks[index].title) (\(index + 1) of \(tasks.count))", Self.symbol(for: .tasks))
-        }
-        return current.map { ($0, nil) }
-    }
-
-    static func symbol(for kind: ActivityItem.Kind) -> String {
-        switch kind {
-        case .thinking: "brain"
-        case .shell: "terminal"
-        case .monitor: "eye"
-        case .subagent: "person.2"
-        case .tool: "wrench.and.screwdriver"
-        case .tasks: "checklist"
-        }
-    }
-}
-
 /// The transcript's geometry, shared with the composer: messages sit 16pt
 /// from the edges; the composer sits with them while the keyboard is away
 /// and pulls in when it is up, to leave room to write.
@@ -769,12 +588,11 @@ extension View {
         #endif
     }
 
-    /// The bottom stays put: the scroll view opens at its bottom edge and
-    /// keeps it when it or its content changes size. The portable SwiftUI
-    /// keeps the offset.
-    @ViewBuilder func bottomAnchored() -> some View {
+    /// The bottom stays put when the list or its content changes size.
+    /// The portable SwiftUI keeps the offset.
+    @ViewBuilder func bottomAnchoredOnResize() -> some View {
         #if canImport(UIKit) || canImport(AppKit)
-        self.defaultScrollAnchor(.bottom)
+        self.defaultScrollAnchor(.bottom, for: .sizeChanges)
         #else
         self
         #endif
@@ -1024,67 +842,3 @@ func afterLayout(_ action: @escaping @MainActor () -> Void) {
     }
     #endif
 }
-
-#if canImport(UIKit) || canImport(AppKit)
-/// Where a scroll view's content ends and how far down it is seen.
-private struct ScrollEdges: Equatable {
-    var content: CGFloat
-    var seen: CGFloat
-    var container: CGFloat
-    var inset: CGFloat
-
-    var atBottom: Bool { seen >= content - 24 }
-}
-
-/// Keeps a thread read at its bottom there: when its content or its room
-/// changes size (a row, a reply's words, the composer's lines, the
-/// keyboard) and it was at the bottom, it is taken to the bottom edge.
-/// Scrolled up to read, it is left where it is until brought back down.
-/// The bottom anchor alone lost the edge when the room and the content
-/// changed together, and the end of a reply stayed under the composer.
-private struct KeptAtBottom: ViewModifier {
-    let toBottom: () -> Void
-    @State private var pinned = true
-
-    func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: ScrollEdges.self) { geometry in
-            ScrollEdges(content: geometry.contentSize.height,
-                        seen: geometry.contentOffset.y + geometry.containerSize.height - geometry.contentInsets.bottom,
-                        container: geometry.containerSize.height, inset: geometry.contentInsets.bottom)
-        } action: { old, new in
-            if old.content != new.content || old.container != new.container || old.inset != new.inset {
-                if pinned, !new.atBottom { toBottom() }
-            } else {
-                // Only the offset moved: the reader scrolling.
-                pinned = new.atBottom
-            }
-        }
-    }
-}
-
-extension View {
-    fileprivate func keptAtBottom(_ toBottom: @escaping () -> Void) -> some View {
-        modifier(KeptAtBottom(toBottom: toBottom))
-    }
-}
-
-/// A scroll view kept by its position: the content gets the way to scroll
-/// to its bottom edge — the edge itself, not a row whose height may still
-/// be an estimate.
-struct EdgeScrolled<Content: View>: View {
-    @State private var position = ScrollPosition(edge: .bottom)
-    let content: (@escaping () -> Void) -> Content
-
-    init(@ViewBuilder content: @escaping (@escaping () -> Void) -> Content) { self.content = content }
-
-    var body: some View {
-        content({ position.scrollTo(edge: .bottom) }).scrollPosition($position)
-    }
-}
-#endif
-#if !(canImport(UIKit) || canImport(AppKit))
-extension View {
-    /// The portable SwiftUI keeps its own offset.
-    fileprivate func keptAtBottom(_ toBottom: @escaping () -> Void) -> some View { self }
-}
-#endif

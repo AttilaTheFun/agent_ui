@@ -23,14 +23,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// Say this now, ahead of the turn in flight: the app interrupts and
     /// hands it over. Without one, a busy composer only stops.
     let steer: (() -> Void)?
-    /// What the turn is doing, and the last failure, over the field.
-    let status: [ActivityItem]
-    let activity: String?
-    let error: String?
-    /// What has been said and is not on the record yet, over the field.
-    let outgoing: [OutgoingMessage]
-    /// Takes a queued message back into the field; nil leaves it be.
-    let edit: ((OutgoingMessage) -> Void)?
+    /// A message sent is not on the record yet: the send button shows a
+    /// spinner and says so until it is.
+    let sending: Bool
     let controls: Controls
     let attachments: Attachments
     @FocusState private var focused: Bool
@@ -38,24 +33,16 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
-    /// Between a send and the field's renewal on a phone: the field still
-    /// draws the words just sent, which are now shown as sending, so it
-    /// is not shown.
-    @State private var sentText = false
 
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
     ///   - attachmentCount: how many attachments `attachments` shows.
-    ///   - status/activity/error: what the turn is doing and the last failure, over the field.
-    ///   - outgoing: messages said and not on the record yet, shown over the field.
-    ///   - edit: takes a queued message back into the field.
+    ///   - sending: a message sent is not on the record yet.
     ///   - controls: the buttons and pills beside the send button.
     ///   - attachments: the thumbnails above the field.
     public init(draft: Binding<String>, placeholder: String = "Message the agent…", busy: Bool,
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
-                steer: (() -> Void)? = nil, status: [ActivityItem] = [], activity: String? = nil,
-                error: String? = nil, outgoing: [OutgoingMessage] = [],
-                edit: ((OutgoingMessage) -> Void)? = nil,
+                steer: (() -> Void)? = nil, sending: Bool = false,
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
         self._draft = draft
         self.placeholder = placeholder
@@ -64,11 +51,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         self.send = send
         self.stop = stop
         self.steer = steer
-        self.status = status
-        self.activity = activity
-        self.error = error
-        self.outgoing = outgoing
-        self.edit = edit
+        self.sending = sending
         self.controls = controls()
         self.attachments = attachments()
     }
@@ -91,11 +74,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         guard draft.isEmpty else { return }
         #if os(iOS)
         focused = false
-        sentText = true
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 400_000_000)
             fieldGeneration &+= 1
-            sentText = false
         }
         #else
         fieldGeneration &+= 1
@@ -136,24 +117,6 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // Spacing by hand: the message keeps `textInset` from the box
             // and from the controls, while the controls keep `gap`.
             VStack(alignment: .leading, spacing: 0) {
-                // What the turn is doing and what is on its way, over the
-                // field: its lines come and go smoothly.
-                SmoothHeight {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if !ComposerStack.isEmpty(status: status, activity: activity, error: error, outgoing: outgoing) {
-                            ComposerStack(status: status, activity: activity, error: error, outgoing: outgoing, edit: edit.map { edit in
-                                // The words come back into the field, which is
-                                // renewed to show them and focused to edit them.
-                                { message in
-                                    edit(message)
-                                    fieldGeneration &+= 1
-                                    focused = true
-                                }
-                            })
-                            Divider().padding(.horizontal, AgentComposerMetrics.inner).padding(.bottom, AgentComposerMetrics.gap)
-                        }
-                    }
-                }
                 if attachmentCount > 0 {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AgentComposerMetrics.gap) { attachments }
@@ -169,7 +132,6 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     .padding(.top, AgentComposerMetrics.inner)
                     .padding(.bottom, AgentComposerMetrics.textInset)
                     .focused($focused)
-                    .opacity(sentText ? 0 : 1)
                     .id(fieldGeneration)
                     .onSubmit { if canSend { fire(send) } }
                     // Return sends; Shift-Return is a newline. Where keys
@@ -181,7 +143,15 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     controls
                     // The one flexible gap: everything else is `gap`.
                     Spacer(minLength: AgentComposerMetrics.gap)
-                    if busy, canSend, let steer {
+                    if sending {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Sending").font(.footnote)
+                        }
+                        .foregroundColor(.secondary)
+                        .frame(height: AgentComposerMetrics.controlHeight)
+                        .accessibilityIdentifier("sending")
+                    } else if busy, canSend, let steer {
                         // Something written while the agent works: say it
                         // now, keep it for after, or just stop.
                         Menu {
@@ -208,11 +178,6 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                 }
             }
             .padding(AgentComposerMetrics.gap)
-            // What the box holds is laid out as it changes, not carried
-            // along by whatever animation is running — the keyboard's,
-            // after a send — which drew the stack's new line over the
-            // field still on its way down.
-            .transaction { $0.animation = nil }
         }
     }
 }

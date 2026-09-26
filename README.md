@@ -19,9 +19,10 @@ reimplementation of the same API, so one source builds everywhere.
   `MessageComposer` with `ComposerAccessories`, the `ConversationTitle`;
   `MacConversationTitlebar` puts the title in the Mac's titlebar.
 - **AgentUI** — `AgentView`, the agent's chat page: the `TranscriptView`
-  (user and assistant bubbles, tool activity rows, the streaming reply, an
-  empty state) over the `AgentComposer` (attachments, a growing field, the
-  app's pills and buttons, send or stop). Ported from the Universal UI
+  (user and assistant bubbles, tool-call rows, an empty state, and one
+  status row at the bottom that is always there) over the `AgentComposer`
+  (attachments, a growing field, the app's pills and buttons, send or stop,
+  and a spinner while a message is sending). Ported from the Universal UI
   Playground; Visor drives it from a remote Claude Code or Codex session.
 - **NavigationUI** — `SplitView` (sidebar, detail, inspector; the app's
   column bindings), `InspectorView` (a pane's frame with the X),
