@@ -137,15 +137,7 @@ public struct TranscriptView: View {
                     case .calls(let run):
                         ToolCallsRow(run: run).transcriptCell().id(block.id)
                     case .stream(let stream):
-                        // A reply grows by what came since the last
-                        // frame: eased, so the thread slides up with it.
-                        // Only the growth: the row arrives in place, as
-                        // every row does — animating the stack's own
-                        // changes has it re-estimate the rows off screen
-                        // mid-animation, and the thread lurches.
-                        AssistantBubble(text: stream.text, streaming: true)
-                            .animation(.easeOut(duration: 0.3), value: stream.text.count)
-                            .transcriptCell().id(stream.id)
+                        StreamingReply(text: stream.text).transcriptCell().id(stream.id)
                     }
                 }
                 // The footer: what is not the record — what the turn is
@@ -454,6 +446,37 @@ public struct AssistantBubble: View {
         }
         .padding(.horizontal, TranscriptMetrics.edgeInset)
         .opacity(streaming ? 0.85 : 1)
+    }
+}
+
+/// A reply being written, shown at a steady pace. Its words arrive in
+/// bursts — a few times a second, several lines at once — and shown as
+/// they come the reply would grow, and the thread move, by the burst. What
+/// has come is shown over the next moment instead, a few words at a time,
+/// so the reply grows a line at a time whatever the cadence of its words.
+struct StreamingReply: View {
+    let text: String
+    @State private var shown = 0
+
+    /// Steps a burst is shown in, and the time between them: a burst is
+    /// shown in about the time the next one takes to come.
+    static let steps = 12
+    static let step: UInt64 = 40_000_000
+
+    var body: some View {
+        AssistantBubble(text: String(text.prefix(shown)), streaming: true)
+            .task(id: text.count) { await reveal() }
+    }
+
+    private func reveal() async {
+        let target = text.count
+        guard target > shown else { shown = target; return }
+        let start = shown
+        for index in 1...Self.steps {
+            try? await Task.sleep(nanoseconds: Self.step)
+            if Task.isCancelled { return }
+            shown = start + (target - start) * index / Self.steps
+        }
     }
 }
 
