@@ -169,12 +169,16 @@ struct StatusRow: View {
     let status: [ActivityItem]
     let activity: String?
     let error: String?
+    /// Bumped each time the row comes on screen: a list keeps the row
+    /// while it is off screen, and a spinner kept that way comes back
+    /// still. A new one spins.
+    @State private var shown = 0
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 if let line {
-                    ProgressView().controlSize(.small)
+                    ProgressView().controlSize(.small).id(shown)
                     if let symbol = line.symbol, !symbol.isEmpty {
                         Image(systemName: symbol).foregroundColor(.secondary).font(.footnote)
                     }
@@ -189,6 +193,7 @@ struct StatusRow: View {
             .padding(.horizontal, TranscriptMetrics.edgeInset)
             Color.clear.frame(height: TranscriptMetrics.bottomGap)
         }
+        .onAppear { shown &+= 1 }
     }
 
     private var line: (label: String, symbol: String?)? {
