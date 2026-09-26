@@ -161,6 +161,7 @@ public struct TranscriptView: View {
             }
         }
         .bottomAnchored()
+        .keptAtBottom(toBottom)
         .onAppear { if !messages.isEmpty { seen = Set(rows.map(\.id)); populated = true } }
         .onChange(of: rows.map(\.id)) { ids in
             if !populated, !messages.isEmpty { populated = true }
@@ -1025,6 +1026,48 @@ func afterLayout(_ action: @escaping @MainActor () -> Void) {
 }
 
 #if canImport(UIKit) || canImport(AppKit)
+/// Where a scroll view's content ends and how far down it is seen.
+private struct ScrollEdges: Equatable {
+    var content: CGFloat
+    var seen: CGFloat
+    var container: CGFloat
+    var inset: CGFloat
+
+    var atBottom: Bool { seen >= content - 24 }
+}
+
+/// Keeps a thread read at its bottom there: when its content or its room
+/// changes size (a row, a reply's words, the composer's lines, the
+/// keyboard) and it was at the bottom, it is taken to the bottom edge.
+/// Scrolled up to read, it is left where it is until brought back down.
+/// The bottom anchor alone lost the edge when the room and the content
+/// changed together, and the end of a reply stayed under the composer.
+private struct KeptAtBottom: ViewModifier {
+    let toBottom: () -> Void
+    @State private var pinned = true
+
+    func body(content: Content) -> some View {
+        content.onScrollGeometryChange(for: ScrollEdges.self) { geometry in
+            ScrollEdges(content: geometry.contentSize.height,
+                        seen: geometry.contentOffset.y + geometry.containerSize.height - geometry.contentInsets.bottom,
+                        container: geometry.containerSize.height, inset: geometry.contentInsets.bottom)
+        } action: { old, new in
+            if old.content != new.content || old.container != new.container || old.inset != new.inset {
+                if pinned, !new.atBottom { toBottom() }
+            } else {
+                // Only the offset moved: the reader scrolling.
+                pinned = new.atBottom
+            }
+        }
+    }
+}
+
+extension View {
+    fileprivate func keptAtBottom(_ toBottom: @escaping () -> Void) -> some View {
+        modifier(KeptAtBottom(toBottom: toBottom))
+    }
+}
+
 /// A scroll view kept by its position: the content gets the way to scroll
 /// to its bottom edge — the edge itself, not a row whose height may still
 /// be an estimate.
@@ -1037,5 +1080,11 @@ struct EdgeScrolled<Content: View>: View {
     var body: some View {
         content({ position.scrollTo(edge: .bottom) }).scrollPosition($position)
     }
+}
+#endif
+#if !(canImport(UIKit) || canImport(AppKit))
+extension View {
+    /// The portable SwiftUI keeps its own offset.
+    fileprivate func keptAtBottom(_ toBottom: @escaping () -> Void) -> some View { self }
 }
 #endif
