@@ -100,17 +100,23 @@ public struct TranscriptView: View {
     @ObservedObject private var openedCalls = ToolCallsOpen.shared
 
     public var body: some View {
+        #if canImport(UIKit) || canImport(AppKit)
+        EdgeScrolled { toBottom in transcript(toBottom) }
+        #else
         ScrollViewReader { proxy in transcript { proxy.scrollTo("bottom", anchor: .bottom) } }
+        #endif
     }
 
-    /// The transcript's list, given how to scroll it to its bottom.
+    /// The transcript, given how to scroll it to its bottom.
     private func transcript(_ toBottom: @escaping () -> Void) -> some View {
-        // A List, not a stack in a ScrollView: rows are laid out as they
-        // come on screen and diffed on a delta, so a thread of thousands
-        // of rows costs what is visible. The bottom is kept by scrolling
-        // to the last row, without animation, on arrival and on change.
-        List {
-            Group {
+        // A lazy stack in a scroll view anchored at its bottom edge: rows
+        // are made as they come on screen, and the bottom stays where it
+        // is whatever changes size — a row arriving or growing, the
+        // keyboard, the composer — with nothing scrolled by hand. A List
+        // sizes its rows by estimate and corrects them as they are laid
+        // out, so a scroll to a row landed short and the thread jumped.
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 if let loadEarlier, !messages.isEmpty {
                     Button(action: loadEarlier) {
                         Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
@@ -121,14 +127,9 @@ public struct TranscriptView: View {
                     .id("earlier")
                 }
                 if messages.isEmpty { emptyState }
-                // The committed transcript: neither the queue nor a
-                // just-sent message, which are overlaid after the reply.
-                // A run of tool calls folds into one row that opens a
-                // sheet; everything else is its own row.
-                // The replies still streaming are rows of the same list,
-                // after the record, so a reply's finished row takes its
-                // stream's place instead of the stream leaving the
-                // footer and a new row arriving above it.
+                // The record, a run of tool calls folded into one row that
+                // opens a sheet; then the replies still being written, so
+                // a reply's finished row takes its stream's place.
                 ForEach(rows) { block in
                     switch block {
                     case .message(let message):
@@ -140,30 +141,13 @@ public struct TranscriptView: View {
                     }
                 }
                 // The footer: what is not the record — what the turn is
-                // doing, an error — and the room above the composer. One
-                // cell, always present, so the thread has one place to
-                // scroll to and the gap scrolls with it.
+                // doing, an error — and the room above the composer.
                 EphemeralFooter(status: status, activity: activity, error: error)
                     .transcriptCell()
                     .id("bottom")
             }
-            .listRowSeparator(.hidden)
-            .plainListRow()
         }
-        .listStyle(.plain)
-        .noMinimumRowHeight()
-        // When the list or its content changes size — the keyboard
-        // coming or going, the composer growing, a reply streaming —
-        // its bottom stays where it is, moving with the change, rather
-        // than the rows keeping their offset and jumping once the
-        // change is done.
-        .bottomAnchoredOnResize()
-        // A row arriving or going — a message sent, a reply landing —
-        // slides in as a list's rows do; words streaming into a row
-        // and the status line changing do not count, and stay still.
-        // The first rows to appear arrive in place, not sliding: a
-        // transcript opening is not a message landing.
-        .animation(populated ? .default : nil, value: messages.count)
+        .bottomAnchored()
         .sheet(isPresented: Binding(get: { opened.url != nil },
                                     set: { if !$0 { opened.url = nil } })) {
             if let url = opened.url { ImageViewer(url: url) }
@@ -172,35 +156,10 @@ public struct TranscriptView: View {
                                     set: { if !$0 { openedCalls.run = nil } })) {
             if let run = openedCalls.run { ToolCallsSheet(run: run) }
         }
-        .onAppear {
-            populated = !messages.isEmpty
-            toBottom()
+        // A message sent is read at the bottom, wherever the thread was.
+        .onChange(of: messages.last?.id) { _ in
+            if messages.last?.role == .user { toBottom() }
         }
-        // The keyboard shrinks the list from below; the last row rides
-        // up with it, and comes back down as it goes.
-        .keyboardTracking { toBottom() }
-        .onChange(of: messages.count) { _ in
-            if populated {
-                // After the layout, as the stream's scroll: a row
-                // arriving (a message sent landing on the record) is
-                // measured in the next pass, and a scroll made in this
-                // one stops a row short, the last message under the
-                // composer.
-                afterLayout { withAnimation { toBottom() } }
-            } else {
-                toBottom()
-                populated = !messages.isEmpty
-            }
-        }
-        // The box grew: its new inset lands in the next layout pass,
-        // and a scroll made in this one is measured against the old
-        // — short by the growth, the gap cell left under the box.
-        .onChange(of: bottomInset) { _ in afterLayout { toBottom() } }
-        // A reply streaming in: its row is new or taller, measured in
-        // the next layout pass, so the scroll waits for it. The app holds
-        // the record while a reply is written, so nothing else moves the
-        // rows meanwhile.
-        .onChange(of: streams) { _ in afterLayout { toBottom() } }
     }
 
     /// The record's blocks, then the streams it does not carry yet. What
@@ -668,11 +627,12 @@ extension View {
         #endif
     }
 
-    /// The bottom stays put when the scroll view changes size; the
-    /// portable SwiftUI keeps the offset.
-    @ViewBuilder func bottomAnchoredOnResize() -> some View {
+    /// The bottom stays put: the scroll view opens at its bottom edge and
+    /// keeps it when it or its content changes size. The portable SwiftUI
+    /// keeps the offset.
+    @ViewBuilder func bottomAnchored() -> some View {
         #if canImport(UIKit) || canImport(AppKit)
-        self.defaultScrollAnchor(.bottom, for: .sizeChanges)
+        self.defaultScrollAnchor(.bottom)
         #else
         self
         #endif
@@ -922,3 +882,19 @@ func afterLayout(_ action: @escaping @MainActor () -> Void) {
     }
     #endif
 }
+
+#if canImport(UIKit) || canImport(AppKit)
+/// A scroll view kept by its position: the content gets the way to scroll
+/// to its bottom edge — the edge itself, not a row whose height may still
+/// be an estimate.
+struct EdgeScrolled<Content: View>: View {
+    @State private var position = ScrollPosition(edge: .bottom)
+    let content: (@escaping () -> Void) -> Content
+
+    init(@ViewBuilder content: @escaping (@escaping () -> Void) -> Content) { self.content = content }
+
+    var body: some View {
+        content({ position.scrollTo(edge: .bottom) }).scrollPosition($position)
+    }
+}
+#endif
