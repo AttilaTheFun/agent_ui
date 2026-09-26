@@ -135,17 +135,19 @@ public struct TranscriptView: View {
             .onAppear(perform: toBottom)
             // The rows drawn are this view's copy of the app's, changed in
             // one transaction as the app's change: rows arriving at the end
-            // come in animated, with the scroll to the bottom in the same
-            // animation — the list's inserts, like UIKit's batch updates,
-            // and one motion. Anything else (the rows replaced whole,
+            // come in animated — the list's inserts, like UIKit's batch
+            // updates — with the scroll to the bottom starting as they land. Anything else (the rows replaced whole,
             // earlier ones loaded, a row's words) is not animated.
             .onChange(of: messages) { _, new in
                 let appended = Self.appends(new, to: shown)
                 if appended {
-                    withAnimation(.smooth(duration: 0.3)) {
-                        shown = new
-                        toBottom()
-                    }
+                    // The inserts animate; the scroll starts on the next
+                    // pass, as they land. In the same update the list
+                    // checks the scroll's target against the rows it had
+                    // (the status row's place is past their end) and iOS
+                    // 26 throws.
+                    withAnimation(.smooth(duration: 0.3)) { shown = new }
+                    afterLayout { withAnimation(.smooth(duration: 0.3)) { toBottom() } }
                 } else {
                     let moved = new.last?.id != shown.last?.id
                     shown = new
