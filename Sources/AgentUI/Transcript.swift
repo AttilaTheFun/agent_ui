@@ -134,9 +134,10 @@ public struct TranscriptView: View {
                 let appended = old.map { id in messages.contains { $0.id == id } } ?? false
                 afterLayout { if appended { withAnimation { toBottom() } } else { toBottom() } }
             }
+            // The composer grew (a longer message): its new height is laid
+            // out first. The keyboard needs nothing: it changes the list's
+            // size, and the bottom anchor moves the thread with it.
             .onChange(of: bottomInset) { _ in afterLayout(toBottom) }
-            // The keyboard coming or going: the thread moves with it.
-            .keyboardTracking(toBottom)
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
@@ -572,27 +573,6 @@ public struct ActivityRow: View {
 /// from the edges; the composer sits with them while the keyboard is away
 /// and pulls in when it is up, to leave room to write.
 extension View {
-    /// Runs `action` as the soft keyboard changes its frame. Only where
-    /// there is one: the Mac has none, the portable SwiftUI lets the
-    /// host handle it.
-    @ViewBuilder func keyboardTracking(_ action: @escaping () -> Void) -> some View {
-        #if canImport(UIKit)
-        self.onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
-            // The keyboard says how it moves; the scroll moves the same way.
-            let info = note.userInfo ?? [:]
-            let duration = (info[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
-            let curve = (info[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int).flatMap(UIView.AnimationCurve.init(rawValue:)) ?? .easeInOut
-            let timing = UICubicTimingParameters(animationCurve: curve)
-            let animation: Animation = timing.controlPoint1 == .zero && timing.controlPoint2 == CGPoint(x: 1, y: 1)
-                ? .linear(duration: duration)
-                : .timingCurve(timing.controlPoint1.x, timing.controlPoint1.y, timing.controlPoint2.x, timing.controlPoint2.y, duration: duration)
-            withAnimation(animation) { action() }
-        }
-        #else
-        self
-        #endif
-    }
-
     /// The bottom stays put when the list or its content changes size.
     /// The portable SwiftUI keeps the offset.
     @ViewBuilder func bottomAnchoredOnResize() -> some View {
