@@ -33,6 +33,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
+    /// A send let the field go: it is renewed once the keyboard is down.
+    @State private var renewWhenHidden = false
 
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
@@ -67,17 +69,15 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// On a phone the keyboard goes with its own animation, as it does
     /// after sending in Claude or ChatGPT: renewing a focused field tears
     /// the keyboard down at once, so the field is let go first and renewed
-    /// once the keyboard is away. On a Mac there is no keyboard to animate
-    /// and the field keeps focus, to type the next message.
+    /// only once the keyboard has gone. On a Mac there is no keyboard to
+    /// animate and the field keeps focus, to type the next message.
     private func fire(_ action: () -> Void) {
         action()
         guard draft.isEmpty else { return }
         #if os(iOS)
         focused = false
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            fieldGeneration &+= 1
-        }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        renewWhenHidden = true
         #else
         fieldGeneration &+= 1
         focused = true
@@ -139,18 +139,25 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     // both are decided here and the field sees neither;
                     // elsewhere the submit above is what sends.
                     .returnSendsShiftReturnBreaks(draft: $draft) { if canSend { fire(send) } }
+                    #if os(iOS)
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+                        guard renewWhenHidden else { return }
+                        renewWhenHidden = false
+                        fieldGeneration &+= 1
+                    }
+                    #endif
                 HStack(spacing: AgentComposerMetrics.gap) {
                     controls
                     // The one flexible gap: everything else is `gap`.
                     Spacer(minLength: AgentComposerMetrics.gap)
                     if sending {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Sending").font(.footnote)
-                        }
-                        .foregroundColor(.secondary)
-                        .frame(height: AgentComposerMetrics.controlHeight)
-                        .accessibilityIdentifier("sending")
+                        // The send button, spinning until the message is
+                        // on the record.
+                        Button {} label: { ProgressView().controlSize(.small).tint(.white) }
+                            .agentCircleButton()
+                            .allowsHitTesting(false)
+                            .accessibilityLabel("Sending")
+                            .accessibilityIdentifier("sending")
                     } else if busy, canSend, let steer {
                         // Something written while the agent works: say it
                         // now, keep it for after, or just stop.
