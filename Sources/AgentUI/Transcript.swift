@@ -94,6 +94,9 @@ public struct TranscriptView: View {
 
     static let bottom = "status"
 
+    /// How the keyboard last started to move, and when.
+    @State private var keyboardMove: (animation: Animation, at: Date)?
+
     public var body: some View {
         ScrollViewReader { proxy in
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
@@ -136,8 +139,16 @@ public struct TranscriptView: View {
             }
             // The room the thread has changed — the keyboard coming or
             // going, the composer growing: the thread is taken to the
-            // bottom in the same change, so it moves with it.
-            .onVisibleHeightChange(toBottom)
+            // bottom, with the keyboard's own animation when it is the
+            // keyboard, so the two move together.
+            .onVisibleHeightChange {
+                if let move = keyboardMove, Date().timeIntervalSince(move.at) < 0.6 {
+                    withAnimation(move.animation) { toBottom() }
+                } else {
+                    toBottom()
+                }
+            }
+            .onKeyboardMove { keyboardMove = ($0, Date()) }
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
@@ -573,6 +584,20 @@ public struct ActivityRow: View {
 /// from the edges; the composer sits with them while the keyboard is away
 /// and pulls in when it is up, to leave room to write.
 extension View {
+    /// Runs `action` with the keyboard's animation as it starts to move.
+    /// Only where there is a soft keyboard.
+    @ViewBuilder func onKeyboardMove(_ action: @escaping (Animation) -> Void) -> some View {
+        #if canImport(UIKit)
+        self.onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            let duration = (note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
+            // The keyboard's own curve, which UIKit does not name.
+            action(.timingCurve(0.38, 0.7, 0.125, 1, duration: max(duration, 0.1)))
+        }
+        #else
+        self
+        #endif
+    }
+
     /// Runs `action` when the height the scroll view shows its content in
     /// changes (its frame, or its insets from the keyboard and the bars).
     /// The portable SwiftUI keeps its own offset.
