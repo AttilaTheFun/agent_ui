@@ -460,7 +460,7 @@ struct StreamingReply: View {
 
     /// Steps a burst is shown in, and the time between them: a burst is
     /// shown in about the time the next one takes to come.
-    static let steps = 12
+    static let steps = 8
     static let step: UInt64 = 40_000_000
 
     var body: some View {

@@ -30,6 +30,20 @@ public struct OutgoingMessage: Identifiable, Equatable, Sendable {
     var canTakeBack: Bool { state == .queued && editable }
 }
 
+/// Shows its content only once it has been there a moment.
+private struct Delayed<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @State private var shown = false
+
+    var body: some View {
+        Group { if shown { content() } }
+            .task {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                if !Task.isCancelled { shown = true }
+            }
+    }
+}
+
 /// The composer's outgoing messages, oldest first, one line each.
 struct OutgoingList: View {
     let messages: [OutgoingMessage]
@@ -43,6 +57,11 @@ struct OutgoingList: View {
                     Button { edit(message) } label: { row(message) }
                         .buttonStyle(.plain)
                         .accessibilityHint("Takes it back to edit")
+                } else if message.state == .sending {
+                    // Most messages land in the thread a moment after they
+                    // are sent; the line is for the ones that take longer,
+                    // not a flash for every one.
+                    Delayed { row(message) }
                 } else {
                     row(message)
                 }
