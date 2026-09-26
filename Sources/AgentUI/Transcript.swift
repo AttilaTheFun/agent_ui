@@ -92,6 +92,9 @@ public struct TranscriptView: View {
 
     static let bottom = "status"
 
+    /// Rows are being put in at the end: the list keeps its top still.
+    @State private var holdTop = false
+
     /// The rows drawn: the app's, as of its last change.
     @State private var shown: [TranscriptMessage]
 
@@ -131,24 +134,29 @@ public struct TranscriptView: View {
             .listStyle(.plain)
             .noMinimumRowHeight()
             // The bottom stays put as the list or its rows change size.
-            .bottomAnchoredOnResize()
+            .bottomAnchoredOnResize(!holdTop)
             .onAppear(perform: toBottom)
             // The rows drawn are this view's copy of the app's, changed as
-            // the app's change: rows arriving at the end come in animated —
-            // the list's inserts, like UIKit's batch updates — with the
-            // scroll to the bottom starting as they land. Anything else
-            // (the rows replaced whole, earlier ones loaded, a row's words)
-            // is not animated.
+            // the app's change. Rows arriving at the end are put in below
+            // what is seen — the list holding its top still for that one
+            // change, rather than its bottom — and the thread then scrolls
+            // up to them, so every row comes in from the bottom. (The
+            // list's own insert animation fades a row in where it will sit
+            // and slides the rows under it down.) Anything else (the rows
+            // replaced whole, earlier ones loaded, a row's words) is not
+            // animated.
             .onChange(of: messages) { _, new in
                 let appended = Self.appends(new, to: shown)
                 if appended {
-                    // The inserts animate; the scroll starts on the next
-                    // pass, as they land. In the same update the list
-                    // checks the scroll's target against the rows it had
-                    // (the status row's place is past their end) and iOS
-                    // 26 throws.
-                    withAnimation(.smooth(duration: 0.3)) { shown = new }
-                    afterLayout { withAnimation(.smooth(duration: 0.3)) { toBottom() } }
+                    holdTop = true
+                    shown = new
+                    // The scroll on the next pass, once the rows are in:
+                    // in the same update the list checks its target
+                    // against the rows it had, and iOS 26 throws.
+                    afterLayout {
+                        withAnimation(.smooth(duration: 0.3)) { toBottom() }
+                        holdTop = false
+                    }
                 } else {
                     let moved = new.last?.id != shown.last?.id
                     shown = new
@@ -618,11 +626,11 @@ extension View {
         #endif
     }
 
-    /// The bottom stays put when the list or its content changes size.
-    /// The portable SwiftUI keeps the offset.
-    @ViewBuilder func bottomAnchoredOnResize() -> some View {
+    /// The bottom stays put when the list or its content changes size;
+    /// with `false`, the top. The portable SwiftUI keeps the offset.
+    @ViewBuilder func bottomAnchoredOnResize(_ bottom: Bool = true) -> some View {
         #if canImport(UIKit) || canImport(AppKit)
-        self.defaultScrollAnchor(.bottom, for: .sizeChanges)
+        self.defaultScrollAnchor(bottom ? .bottom : .top, for: .sizeChanges)
         #else
         self
         #endif

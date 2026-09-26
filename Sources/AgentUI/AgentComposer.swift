@@ -30,6 +30,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
+    /// The words just sent, shown in the box, faint, while they are on
+    /// their way.
+    @State private var sentWords: String?
 
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
@@ -53,6 +56,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         self.attachments = attachments()
     }
 
+    /// The words on their way, while there is nothing new written.
+    private var sendingWords: String? { sending && draft.isEmpty ? sentWords : nil }
+
     private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
 
     /// Sends; the keyboard stays up and the field keeps focus, to write
@@ -65,9 +71,13 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// field would read the draft too, but takes the keyboard down.) On a
     /// Mac, where there is no keyboard to lose, the field is renewed.
     private func fire(_ action: @escaping () -> Void) {
+        let words = draft
         action()
         // The app kept the draft (nothing was sent): leave it.
         guard draft.isEmpty else { return }
+        // Shown in the box until the message is on the record, and gone
+        // from it as the message arrives in the thread.
+        if !AgentText.isBlank(words) { sentWords = AgentText.trimmed(words) }
         #if os(macOS)
         fieldGeneration &+= 1
         focused = true
@@ -121,8 +131,19 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     }
                     .padding(.bottom, AgentComposerMetrics.gap)
                 }
-                TextField(placeholder, text: $draft, axis: .vertical)
+                TextField(sendingWords == nil ? placeholder : "", text: $draft, axis: .vertical)
                     .textFieldStyle(.plain)
+                    // The words on their way, where they were written,
+                    // until something new is.
+                    .overlay(alignment: .topLeading) {
+                        if let sendingWords {
+                            Text(sendingWords)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1...10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .lineLimit(1...10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, AgentComposerMetrics.inner)
@@ -175,6 +196,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                 }
             }
             .padding(AgentComposerMetrics.gap)
+            // On the record: the words leave the box as the message
+            // arrives in the thread, the same update.
+            .onChange(of: sending) { _, now in if !now { sentWords = nil } }
         }
     }
 }
