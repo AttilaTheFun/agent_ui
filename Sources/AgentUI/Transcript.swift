@@ -150,11 +150,14 @@ public struct TranscriptView: View {
                 if appended {
                     holdTop = true
                     shown = new
-                    // The scroll on the next pass, once the rows are in:
-                    // in the same update the list checks its target
-                    // against the rows it had, and iOS 26 throws.
+                    // The scroll once the list has the rows: it takes a
+                    // change a pass after the view's, and a scroll before
+                    // then finds nothing new to go to (and in the same
+                    // update iOS 26 throws on the target).
                     afterLayout {
-                        withAnimation(.smooth(duration: 0.3)) { toBottom() } completion: { holdTop = false }
+                        afterLayout {
+                            withAnimation(.smooth(duration: 0.3)) { toBottom() } completion: { holdTop = false }
+                        }
                     }
                 } else {
                     let moved = new.last?.id != shown.last?.id
