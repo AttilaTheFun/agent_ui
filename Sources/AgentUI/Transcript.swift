@@ -200,21 +200,24 @@ struct StatusRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // The spinner and the words are always there, hidden when
+            // there is nothing to say; they change without animation, so
+            // the row never grows, shrinks or fades as the thread moves.
             HStack(spacing: 8) {
-                if let line {
-                    ProgressView().controlSize(.small).id(shown)
-                    if let symbol = line.symbol, !symbol.isEmpty {
-                        Image(systemName: symbol).foregroundColor(.secondary).font(.footnote)
-                    }
-                    Text(line.label).font(.footnote).foregroundColor(.secondary)
-                } else if let error {
-                    Text(error).font(.footnote).foregroundColor(.red)
+                ProgressView().controlSize(.small).id(shown)
+                    .opacity(line == nil ? 0 : 1)
+                if let symbol = line?.symbol, !symbol.isEmpty {
+                    Image(systemName: symbol).foregroundColor(.secondary).font(.footnote)
                 }
+                Text(line?.label ?? error ?? "")
+                    .font(.footnote)
+                    .foregroundColor(line == nil && error != nil ? .red : .secondary)
                 Spacer(minLength: 0)
             }
             .lineLimit(1)
             .frame(height: 20)
             .padding(.horizontal, TranscriptMetrics.edgeInset)
+            .transaction { $0.animation = nil }
             Color.clear.frame(height: TranscriptMetrics.bottomGap)
         }
         .onAppear { shown &+= 1 }
