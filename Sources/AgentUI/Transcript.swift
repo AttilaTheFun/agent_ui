@@ -147,6 +147,7 @@ public struct TranscriptView: View {
             // animated.
             .onChange(of: messages) { _, new in
                 let appended = Self.appends(new, to: shown)
+                NSLog("%@", "VISOR_LIST change appended=\(appended) count \(shown.count)->\(new.count) last \(shown.last?.id.prefix(20) ?? "-")->\(new.last?.id.prefix(20) ?? "-") holdTop=\(holdTop)") // DEBUG
                 if appended {
                     holdTop = true
                     shown = new
@@ -156,7 +157,8 @@ public struct TranscriptView: View {
                     // update iOS 26 throws on the target).
                     afterLayout {
                         afterLayout {
-                            withAnimation(.smooth(duration: 0.3)) { toBottom() } completion: { holdTop = false }
+                            NSLog("%@", "VISOR_LIST scroll") // DEBUG
+                            withAnimation(.smooth(duration: 0.3)) { toBottom() } completion: { holdTop = false; NSLog("%@", "VISOR_LIST done") } // DEBUG
                         }
                     }
                 } else {
@@ -172,7 +174,7 @@ public struct TranscriptView: View {
             // While rows arrive, their own scroll takes the thread to the
             // bottom: a second scroll in the middle of it (the composer
             // shrinking as the words sent leave it) fought it.
-            .onVisibleHeightChange { if !holdTop { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
+            .onVisibleHeightChange { NSLog("%@", "VISOR_LIST height holdTop=\(holdTop)"); if !holdTop { withAnimation(.smooth(duration: 0.35)) { toBottom() } } } // DEBUG
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
