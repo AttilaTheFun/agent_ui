@@ -134,10 +134,10 @@ public struct TranscriptView: View {
                 let appended = old.map { id in messages.contains { $0.id == id } } ?? false
                 afterLayout { if appended { withAnimation { toBottom() } } else { toBottom() } }
             }
-            // The composer grew (a longer message): its new height is laid
-            // out first. The keyboard needs nothing: it changes the list's
-            // size, and the bottom anchor moves the thread with it.
-            .onChange(of: bottomInset) { _ in afterLayout(toBottom) }
+            // The room the thread has changed — the keyboard coming or
+            // going, the composer growing: the thread is taken to the
+            // bottom in the same change, so it moves with it.
+            .onVisibleHeightChange(toBottom)
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
@@ -573,6 +573,21 @@ public struct ActivityRow: View {
 /// from the edges; the composer sits with them while the keyboard is away
 /// and pulls in when it is up, to leave room to write.
 extension View {
+    /// Runs `action` when the height the scroll view shows its content in
+    /// changes (its frame, or its insets from the keyboard and the bars).
+    /// The portable SwiftUI keeps its own offset.
+    @ViewBuilder func onVisibleHeightChange(_ action: @escaping () -> Void) -> some View {
+        #if canImport(UIKit) || canImport(AppKit)
+        self.onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.containerSize.height - geometry.contentInsets.top - geometry.contentInsets.bottom
+        } action: { old, new in
+            if old != new { action() }
+        }
+        #else
+        self
+        #endif
+    }
+
     /// The bottom stays put when the list or its content changes size.
     /// The portable SwiftUI keeps the offset.
     @ViewBuilder func bottomAnchoredOnResize() -> some View {
