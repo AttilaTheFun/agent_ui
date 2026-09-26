@@ -55,27 +55,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
 
     private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
 
-    /// Sends, then makes sure the field shows what the app now holds.
-    /// Apple's `TextField(axis: .vertical)` keeps drawing the text it had
-    /// while it is focused, so a draft cleared under a focused field
-    /// stayed in the box.
-    ///
-    /// On a phone the field is let go first, so the keyboard goes with its
-    /// own animation as it does after sending in Claude or ChatGPT, and the
-    /// message is sent (and the draft cleared) once it has been let go:
-    /// an unfocused field shows what the binding holds. On a Mac there is
-    /// no keyboard to animate: the field is renewed to read the cleared
-    /// draft and keeps focus, to type the next message.
+    /// Sends; the keyboard stays up and the field keeps focus, to write
+    /// the next message.
     private func fire(_ action: @escaping () -> Void) {
-        #if os(iOS)
-        focused = false
-        Task { @MainActor in action() }
-        #else
         action()
-        guard draft.isEmpty else { return }
-        fieldGeneration &+= 1
-        focused = true
-        #endif
     }
 
     public var body: some View {
