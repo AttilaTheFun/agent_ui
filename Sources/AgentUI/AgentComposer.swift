@@ -202,6 +202,11 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                 }
             }
             .padding(AgentComposerMetrics.gap)
+            // What the box holds is laid out as it changes, not carried
+            // along by whatever animation is running — the keyboard's,
+            // after a send — which drew the stack's new line over the
+            // field still on its way down.
+            .transaction { $0.animation = nil }
         }
     }
 }
