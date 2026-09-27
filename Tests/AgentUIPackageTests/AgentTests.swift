@@ -2,6 +2,14 @@ import XCTest
 @testable import AgentUI
 
 final class AgentTests: XCTestCase {
+    func testAGoalIsItsOwnRowAmongCalls() {
+        let call = TranscriptMessage(id: "c", role: .assistant, text: "", activities: ["Bash: ls"])
+        let goal = TranscriptMessage(id: "g", role: .tool, text: "Ship it", toolName: "goal")
+        let result = TranscriptMessage(id: "r", role: .tool, text: "done", toolName: "tool_result")
+        let blocks = TranscriptBlock.blocks([call, goal, result])
+        XCTAssertEqual(blocks.map(\.id), ["calls-c", "g", "calls-r"])
+    }
+
     func testBlankAndTrim() {
         XCTAssertTrue(AgentText.isBlank("  \n\t"))
         XCTAssertFalse(AgentText.isBlank(" a "))
