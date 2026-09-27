@@ -451,6 +451,8 @@ struct SuggestionList: View {
                             Text(suggestion.title)
                                 .font(.callout.monospaced().weight(.medium))
                                 .foregroundColor(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
                             if !suggestion.detail.isEmpty {
                                 Text(suggestion.detail)
                                     .font(.caption)
