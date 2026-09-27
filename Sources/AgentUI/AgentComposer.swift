@@ -6,6 +6,24 @@ import SwiftUI
 // — or stop, while the agent works — on the right. Liquid Glass on iOS 26 /
 // macOS 26, a material box before and on other SwiftUIs.
 
+/// A way to finish what is being typed, offered above the field: a slash
+/// command, for one. Picking it puts `text` in the draft.
+public struct AgentSuggestion: Identifiable, Equatable, Sendable {
+    public var id: String { text }
+    /// What the draft becomes ("/compact ").
+    public var text: String
+    /// What the row says ("/compact").
+    public var title: String
+    /// One line on what it does.
+    public var detail: String
+
+    public init(text: String, title: String, detail: String = "") {
+        self.text = text
+        self.title = title
+        self.detail = detail
+    }
+}
+
 /// The composer's leading controls and the attachment strip are the app's:
 /// what an attachment is (a photo, a file, a screenshot) and how it is
 /// picked differ per app; the composer only lays them out.
@@ -25,6 +43,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     let sending: Bool
     let controls: Controls
     let attachments: Attachments
+    /// Ways to finish the draft, shown above the field while there are any.
+    let suggestions: [AgentSuggestion]
+    let pick: (AgentSuggestion) -> Void
     @FocusState private var focused: Bool
     /// Bumped after a send. Apple's multi-line field goes on showing what
     /// the app cleared out from under it while it has focus, so it is
@@ -40,10 +61,15 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     ///   - sending: a message sent is not on the record yet.
     ///   - controls: the buttons and pills beside the send button.
     ///   - attachments: the thumbnails above the field.
+    ///   - suggestions: ways to finish the draft (slash commands), listed
+    ///     above the field; `pick` is told which was tapped.
     public init(draft: Binding<String>, placeholder: String = "Message the agent…", busy: Bool,
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
                 steer: (() -> Void)? = nil, sending: Bool = false,
+                suggestions: [AgentSuggestion] = [], pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
+        self.suggestions = suggestions
+        self.pick = pick
         self._draft = draft
         self.placeholder = placeholder
         self.busy = busy
@@ -124,6 +150,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // Spacing by hand: the message keeps `textInset` from the box
             // and from the controls, while the controls keep `gap`.
             VStack(alignment: .leading, spacing: 0) {
+                if !suggestions.isEmpty {
+                    SuggestionList(suggestions: suggestions, pick: pick)
+                        .padding(.bottom, AgentComposerMetrics.gap)
+                }
                 if attachmentCount > 0 {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AgentComposerMetrics.gap) { attachments }
@@ -404,5 +434,42 @@ extension View {
         #else
         self
         #endif
+    }
+}
+
+/// The suggestions above the field: a few rows, the rest a scroll away.
+struct SuggestionList: View {
+    let suggestions: [AgentSuggestion]
+    let pick: (AgentSuggestion) -> Void
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(suggestions) { suggestion in
+                    Button { pick(suggestion) } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(suggestion.title)
+                                .font(.callout.monospaced().weight(.medium))
+                                .foregroundColor(.primary)
+                            if !suggestion.detail.isEmpty {
+                                Text(suggestion.detail)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, AgentComposerMetrics.inner)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("suggestion-" + suggestion.title)
+                }
+            }
+        }
+        // Up to about five rows before it scrolls.
+        .frame(maxHeight: min(CGFloat(suggestions.count) * 46, 230))
+        .scrollBounceBehavior(.basedOnSize)
     }
 }

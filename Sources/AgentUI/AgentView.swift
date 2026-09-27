@@ -28,6 +28,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     let steer: (() -> Void)?
     let controls: () -> Controls
     let attachments: () -> Attachments
+    let suggestions: [AgentSuggestion]
+    let pick: (AgentSuggestion) -> Void
 
     /// - Parameters:
     ///   - messages: the record; the only thing that adds rows.
@@ -40,6 +42,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
                 busy: Bool, sending: Bool = false, attachmentCount: Int = 0, send: @escaping () -> Void,
                 stop: @escaping () -> Void, steer: (() -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
+                suggestions: [AgentSuggestion] = [], pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -60,6 +63,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.steer = steer
         self.controls = controls
         self.attachments = attachments
+        self.suggestions = suggestions
+        self.pick = pick
     }
 
     /// The composer's height, measured: the transcript re-pins its bottom
@@ -73,7 +78,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: send, stop: stop, steer: steer,
-                              sending: sending, controls: controls, attachments: attachments)
+                              sending: sending, suggestions: suggestions, pick: pick, controls: controls, attachments: attachments)
                     .background(GeometryReader { geometry in
                         Color.clear
                             .onAppear { composerHeight = geometry.size.height }
