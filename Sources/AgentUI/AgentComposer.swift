@@ -400,12 +400,8 @@ public enum AgentText {
 extension View {
     /// The remove glyph's white-on-dark palette (the two-colour
     /// `foregroundStyle` is Apple's SwiftUI only).
-    @ViewBuilder func removeGlyphStyle() -> some View {
-        #if canImport(AppKit) || canImport(UIKit)
+    func removeGlyphStyle() -> some View {
         foregroundStyle(.white, .black.opacity(0.6))
-        #else
-        foregroundColor(.white)
-        #endif
     }
 }
 
