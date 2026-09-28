@@ -161,9 +161,20 @@ public struct TranscriptView: View {
                         holdTop = false
                     }
                 } else {
+                    let first = shown.isEmpty
                     let moved = new.last?.id != shown.last?.id
                     shown = new
                     if moved { afterLayout(toBottom) }
+                    // The first rows of a thread opened before they had
+                    // come: the list's first scroll measures rows it has
+                    // only estimated and stops short, so once they are laid
+                    // out it goes again.
+                    if first, !new.isEmpty {
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                            toBottom()
+                        }
+                    }
                 }
             }
             // The room the thread has changed — the keyboard coming or
