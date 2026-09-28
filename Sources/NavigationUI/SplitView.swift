@@ -162,6 +162,9 @@ public struct ListSearchChrome<Content: View>: View {
     let composeLabel: String
     let compose: (() -> Void)?
     @ViewBuilder let content: () -> Content
+    #if os(macOS)
+    @FocusState private var searching: Bool
+    #endif
 
     public init(text: Binding<String>, prompt: String = "Search",
                 composeLabel: String = "New", compose: (() -> Void)? = nil,
@@ -225,6 +228,16 @@ public struct ListSearchChrome<Content: View>: View {
             Image(systemName: "magnifyingglass").foregroundColor(.secondary)
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
+                #if os(macOS)
+                // The window opens on its list, not typing into the search:
+                // AppKit hands the first field the keyboard when the window
+                // comes up, so it is taken back once it has.
+                .focused($searching)
+                .task {
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    searching = false
+                }
+                #endif
             if !text.isEmpty {
                 Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundColor(.secondary) }
                     .buttonStyle(.plain)
