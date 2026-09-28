@@ -81,6 +81,11 @@ public struct ImageViewer: View {
         #if os(macOS)
         .frame(width: 760, height: 600)
         #endif
+        #if !(canImport(AppKit) || canImport(UIKit))
+        // Away with Done or Back, not a drag or a tap at the edge: those
+        // are the picture's.
+        .interactiveDismissDisabled()
+        #endif
         #if canImport(AppKit) || canImport(UIKit)
         .task { await fetch() }
         #endif
