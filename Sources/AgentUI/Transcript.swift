@@ -636,12 +636,8 @@ extension View {
 
     /// The bottom stays put when the list or its content changes size;
     /// with `false`, the top. The portable SwiftUI keeps the offset.
-    @ViewBuilder func bottomAnchoredOnResize(_ bottom: Bool = true) -> some View {
-        #if canImport(UIKit) || canImport(AppKit)
-        self.defaultScrollAnchor(bottom ? .bottom : .top, for: .sizeChanges)
-        #else
-        self
-        #endif
+    func bottomAnchoredOnResize(_ bottom: Bool = true) -> some View {
+        defaultScrollAnchor(bottom ? .bottom : .top, for: .sizeChanges)
     }
 
     /// A list whose rows are exactly as tall as what is in them. Apple's
