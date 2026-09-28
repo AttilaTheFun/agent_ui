@@ -589,11 +589,13 @@ public enum TranscriptActions {
 
     static func put(_ text: String) {
         if let copy { copy(text); return }
-        #if canImport(UIKit)
-        UIPasteboard.general.string = text
-        #elseif canImport(AppKit)
+        #if canImport(AppKit)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        #else
+        // UIKit's pasteboard, which the portable SwiftUI has too (the
+        // browser's clipboard, Android's).
+        UIPasteboard.general.string = text
         #endif
     }
 }
