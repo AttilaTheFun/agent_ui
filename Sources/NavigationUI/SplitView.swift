@@ -239,8 +239,10 @@ public struct ListSearchChrome<Content: View>: View {
         #endif
     }
 
-    /// The field itself: a rounded search box.
-    private var searchField: some View {
+    /// The field itself: a rounded search box, 36 pt tall, or `height`.
+    private var searchField: some View { searchField(height: 36) }
+
+    private func searchField(height: CGFloat) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundColor(.secondary)
             TextField(prompt, text: $text)
@@ -252,14 +254,15 @@ public struct ListSearchChrome<Content: View>: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: 36)
+        .frame(height: height)
         .background(Capsule().fill(Color.secondary.opacity(0.18)))
     }
 
     /// The phone's bar: a search field and, beside it, compose.
     private var floatingBar: some View {
         HStack(spacing: 10) {
-            searchField.frame(height: 44)
+            // As tall as compose beside it.
+            searchField(height: 44)
             if let compose {
                 Button(action: compose) {
                     Image(systemName: "square.and.pencil")
