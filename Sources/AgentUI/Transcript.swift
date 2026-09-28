@@ -94,9 +94,29 @@ public struct TranscriptView: View {
 
     /// Rows are being put in at the end: the list keeps its top still.
     @State private var holdTop = false
+    /// Just after a thread's rows are first shown: while the list is still
+    /// measuring them, each change in its height takes it to the bottom
+    /// again, so it lands on the last row however long the measuring takes
+    /// (a Mac's list scrolls to a row before its height is known and stops
+    /// short).
+    @State private var settling = false
 
     /// The rows drawn: the app's, as of its last change.
     @State private var shown: [TranscriptMessage]
+
+    /// Keeps the thread on its last row while the list lays out its first
+    /// rows: every height change in the next moment scrolls again, and a
+    /// last scroll when the moment is over.
+    private func settle(_ toBottom: @escaping @MainActor () -> Void) {
+        settling = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            toBottom()
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            toBottom()
+            settling = false
+        }
+    }
 
     /// Whether `new` is `old` with rows added after its last.
     static func appends(_ new: [TranscriptMessage], to old: [TranscriptMessage]) -> Bool {
@@ -135,7 +155,11 @@ public struct TranscriptView: View {
             .noMinimumRowHeight()
             // The bottom stays put as the list or its rows change size.
             .bottomAnchoredOnResize(!holdTop)
-            .onAppear(perform: toBottom)
+            .onAppear {
+                toBottom()
+                if !shown.isEmpty { settle(toBottom) }
+            }
+            .onContentHeightChange { if settling { toBottom() } }
             // The rows drawn are this view's copy of the app's, changed as
             // the app's change. Rows arriving at the end are put in below
             // what is seen — the list holding its top still for that one
@@ -167,14 +191,9 @@ public struct TranscriptView: View {
                     if moved { afterLayout(toBottom) }
                     // The first rows of a thread opened before they had
                     // come: the list's first scroll measures rows it has
-                    // only estimated and stops short, so once they are laid
-                    // out it goes again.
-                    if first, !new.isEmpty {
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            toBottom()
-                        }
-                    }
+                    // only estimated and stops short, so it goes again as
+                    // they are laid out.
+                    if first, !new.isEmpty { settle(toBottom) }
                 }
             }
             // The room the thread has changed — the keyboard coming or
@@ -639,6 +658,20 @@ extension View {
         #if canImport(UIKit) || canImport(AppKit)
         self.onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.containerSize.height - geometry.contentInsets.top - geometry.contentInsets.bottom
+        } action: { old, new in
+            if old != new { action() }
+        }
+        #else
+        self
+        #endif
+    }
+
+    /// Told when the scrolled content's height changes: rows measured,
+    /// added or grown.
+    @ViewBuilder func onContentHeightChange(_ action: @escaping () -> Void) -> some View {
+        #if canImport(UIKit) || canImport(AppKit)
+        self.onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentSize.height
         } action: { old, new in
             if old != new { action() }
         }
