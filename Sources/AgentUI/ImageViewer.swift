@@ -1,16 +1,13 @@
 // A picture on its own: the whole screen, pinch to zoom, drag to move
-// what you have zoomed into, and two things in the bar — done, and
-// share, which is where saving it lives on a phone.
-//
-// Apple's SwiftUI has gestures, files and a share sheet. The portable
-// one has none of the three, so there it is the picture and a way out.
+// what you have zoomed into, double tap to go back, and done. On Apple's
+// SwiftUI the bar also has share, which is where saving it lives on a
+// phone: it needs the picture as a file, and a share sheet, which the
+// portable SwiftUI has neither of. The gestures are the same everywhere.
 
 import SwiftUI
 #if canImport(AppKit) || canImport(UIKit)
 import Foundation
 #endif
-
-#if canImport(AppKit) || canImport(UIKit)
 
 public struct ImageViewer: View {
     let url: String
@@ -19,9 +16,11 @@ public struct ImageViewer: View {
     @State private var pinching: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var dragging: CGSize = .zero
+    #if canImport(AppKit) || canImport(UIKit)
     /// The bytes, written to a file so the share sheet offers Save Image
     /// rather than a link to nowhere.
     @State private var file: URL?
+    #endif
 
     public init(url: String) { self.url = url }
 
@@ -30,28 +29,37 @@ public struct ImageViewer: View {
     public var body: some View {
         NavigationStack {
             GeometryReader { geo in
-              ZStack {
-                Color.black.opacity(0.92).ignoresSafeArea()
-                // Told how much room there is, so the app hands back a
-                // picture of a definite size: a view happy at any size
-                // gets none at all inside a stack that has none either.
-                TranscriptImage(url: url, maxEdge: min(geo.size.width, geo.size.height))
-                    .scaleEffect(scale)
-                    .offset(x: offset.width + dragging.width, y: offset.height + dragging.height)
-                    // Pinch and drag together, not one after the other: a
-                    // drag that began with the first finger no longer
-                    // keeps the second from zooming.
-                    .gesture(zoomGesture.simultaneously(with: panGesture))
-                    // Back to where it started, without hunting for it.
-                    .onTapGesture(count: 2) {
-                        zoom = scale > 1 ? 1 : 2
-                        offset = .zero
-                    }
-              }
-              .frame(width: geo.size.width, height: geo.size.height)
+                ZStack {
+                    #if canImport(AppKit) || canImport(UIKit)
+                    Color.black.opacity(0.92).ignoresSafeArea()
+                    #else
+                    Color.black.opacity(0.92)
+                    #endif
+                    // As large as the room, at its own proportions: given
+                    // the whole frame (no longest side), the app's picture
+                    // fits itself to it.
+                    TranscriptImage(url: url, maxEdge: 0)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .scaleEffect(scale)
+                        .offset(x: offset.width + dragging.width, y: offset.height + dragging.height)
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+                // Anywhere in the room, not only on the picture where it
+                // sat before it was zoomed.
+                .contentShape(Rectangle())
+                // Pinch and drag together, not one after the other: a
+                // drag that began with the first finger no longer keeps
+                // the second from zooming.
+                .gesture(zoomGesture.simultaneously(with: panGesture))
+                // Back to where it started, without hunting for it.
+                .onTapGesture(count: 2) {
+                    zoom = scale > 1 ? 1 : 2
+                    offset = .zero
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                #if canImport(AppKit) || canImport(UIKit)
                 ToolbarItem(placement: .primaryAction) {
                     if let file {
                         // A file, not a string: that is what puts Save
@@ -62,6 +70,7 @@ public struct ImageViewer: View {
                         ProgressView().controlSize(.small)
                     }
                 }
+                #endif
             }
         }
         // A sheet on the Mac takes the size of what is in it, and what is
@@ -72,9 +81,12 @@ public struct ImageViewer: View {
         #if os(macOS)
         .frame(width: 760, height: 600)
         #endif
+        #if canImport(AppKit) || canImport(UIKit)
         .task { await fetch() }
+        #endif
     }
 
+    #if canImport(AppKit) || canImport(UIKit)
     /// Writes the picture beside the temporary files so it can be shared
     /// as a file. Named after the reference, so opening the same picture
     /// twice does not leave two.
@@ -86,6 +98,7 @@ public struct ImageViewer: View {
         guard (try? data.write(to: destination, options: .atomic)) != nil else { return }
         file = destination
     }
+    #endif
 
     private var zoomGesture: some Gesture {
         MagnifyGesture()
@@ -108,30 +121,3 @@ public struct ImageViewer: View {
             }
     }
 }
-
-#else
-
-/// Without gestures or a share sheet: the picture, and a way back.
-public struct ImageViewer: View {
-    let url: String
-    @Environment(\.dismiss) private var dismiss
-
-    public init(url: String) { self.url = url }
-
-    public var body: some View {
-        NavigationStack {
-            GeometryReader { geo in
-                ZStack {
-                    Color.black.opacity(0.92)
-                    TranscriptImage(url: url, maxEdge: min(geo.size.width, geo.size.height))
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-            }
-        }
-    }
-}
-
-#endif
