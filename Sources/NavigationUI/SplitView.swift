@@ -157,7 +157,6 @@ public struct ThreeColumnSplitView<Sidebar: View, Content: View, Detail: View>: 
 /// search field sits under the navigation bar (the host's `.searchable`)
 /// and compose is a toolbar item.
 public struct ListSearchChrome<Content: View>: View {
-    @Environment(\.horizontalSizeClass) private var sizeClass
     @Binding var text: String
     let prompt: String
     let composeLabel: String
@@ -174,12 +173,10 @@ public struct ListSearchChrome<Content: View>: View {
         self.content = content
     }
 
-    private var compact: Bool { sizeClass == .compact }
-
     public var body: some View {
-        #if os(iOS)
-        // The system's own search and compose, which iOS 26 draws as glass
-        // items in the bottom bar.
+        #if !os(macOS)
+        // The system's own search and compose, which iOS 26 (and the
+        // portable SwiftUI) draws as glass items in the bottom bar.
         if #available(iOS 26.0, *) {
             content()
                 .searchable(text: $text, prompt: prompt)
@@ -206,7 +203,7 @@ public struct ListSearchChrome<Content: View>: View {
                     }
                 }
         }
-        #elseif os(macOS)
+        #else
         // The Mac's shape: the field under the navigation bar, not in it;
         // compose stays a toolbar item.
         content()
@@ -219,30 +216,11 @@ public struct ListSearchChrome<Content: View>: View {
                     }
                 }
             }
-        #else
-        // The portable SwiftUI: the same two shapes, drawn here.
-        if compact {
-            content()
-                .safeAreaInset(edge: .bottom) { floatingBar }
-        } else {
-            content()
-                .safeAreaInset(edge: .top) { searchField.padding(.horizontal, 12).padding(.bottom, 8) }
-                .toolbar {
-                    if let compose {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button(action: compose) { Image(systemName: "square.and.pencil") }
-                                .accessibilityLabel(composeLabel)
-                        }
-                    }
-                }
-        }
         #endif
     }
 
-    /// The field itself: a rounded search box, 36 pt tall, or `height`.
-    private var searchField: some View { searchField(height: 36) }
-
-    private func searchField(height: CGFloat) -> some View {
+    /// The Mac's field: a rounded search box.
+    private var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundColor(.secondary)
             TextField(prompt, text: $text)
@@ -254,26 +232,8 @@ public struct ListSearchChrome<Content: View>: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: height)
+        .frame(height: 36)
         .background(Capsule().fill(Color.secondary.opacity(0.18)))
     }
 
-    /// The phone's bar: a search field and, beside it, compose.
-    private var floatingBar: some View {
-        HStack(spacing: 10) {
-            // As tall as compose beside it.
-            searchField(height: 44)
-            if let compose {
-                Button(action: compose) {
-                    Image(systemName: "square.and.pencil")
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(Color.secondary.opacity(0.18)))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(composeLabel)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
-    }
 }
