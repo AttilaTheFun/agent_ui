@@ -22,7 +22,7 @@ reimplementation of the same API, so one source builds everywhere.
   (user and assistant bubbles, tool-call rows, an empty state, and one
   status row at the bottom that is always there) over the `AgentComposer`
   (attachments, a growing field, the app's pills and buttons, send or stop,
-  and a spinner while a message is sending). Ported from the Universal UI
+  and a spinner while a message is sending). Ported from the Isomer
   Playground; Visor drives it from a remote Claude Code or Codex session.
 - **NavigationUI** — `SplitView` (sidebar, detail, inspector; the app's
   column bindings), `InspectorView` (a pane's frame with the X),
