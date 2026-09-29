@@ -170,7 +170,12 @@ public struct TranscriptView: View {
             // replaced whole, earlier ones loaded, a row's words) is not
             // animated.
             .onChange(of: messages) { _, new in
-                let appended = Self.appends(new, to: shown)
+                // Rows after the last while the thread is still settling
+                // after it opened are history catching up (the whole
+                // transcript arriving after the cached rows), not a reply:
+                // they go in with the thread kept at its bottom, not
+                // brought in from below.
+                let appended = Self.appends(new, to: shown) && !settling
                 if appended {
                     holdTop = true
                     shown = new
