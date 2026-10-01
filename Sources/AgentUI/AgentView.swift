@@ -70,14 +70,30 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// The composer's height, measured: the transcript re-pins its bottom
     /// as the box grows with a longer message.
     @State private var composerHeight: CGFloat = 0
+    /// Set as a message is sent, for the moment the composer and the
+    /// thread both change: the thread holds still through it.
+    @State private var sendingNow = false
+
+    /// Sending, with the thread told first — in the same update as the
+    /// draft clearing and the message going in.
+    private func held(_ action: @escaping () -> Void) -> () -> Void {
+        {
+            sendingNow = true
+            action()
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                sendingNow = false
+            }
+        }
+    }
 
     public var body: some View {
         TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                        emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
-                       bottomInset: composerHeight)
+                       bottomInset: composerHeight, sending: sendingNow)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
-                              attachmentCount: attachmentCount, send: send, stop: stop, steer: steer,
+                              attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
                               sending: sending, suggestions: suggestions, pick: pick, controls: controls, attachments: attachments)
                     .background(GeometryReader { geometry in
                         Color.clear

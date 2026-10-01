@@ -70,10 +70,16 @@ public struct TranscriptView: View {
     /// How much of the bottom the composer covers; the thread is scrolled
     /// to its bottom again when this changes.
     let bottomInset: CGFloat
+    /// A message is being sent this moment: the composer gives up its
+    /// lines as the message goes into the thread, and the list keeps its
+    /// top still through both, then eases to its bottom — rather than
+    /// dropping with the composer and coming back up.
+    let sending: Bool
 
     public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
-                loadEarlier: (() -> Void)? = nil, bottomInset: CGFloat = 0) {
+                loadEarlier: (() -> Void)? = nil, bottomInset: CGFloat = 0, sending: Bool = false) {
+        self.sending = sending
         self.messages = messages
         self._shown = State(initialValue: messages)
         self.busy = busy
@@ -154,7 +160,17 @@ public struct TranscriptView: View {
             .listStyle(.plain)
             .noMinimumRowHeight()
             // The bottom stays put as the list or its rows change size.
-            .bottomAnchoredOnResize(!holdTop)
+            .bottomAnchoredOnResize(!(holdTop || sending))
+            .onChange(of: sending) { _, now in
+                guard now else { return }
+                // Whether or not a row goes in (a message that waits for
+                // the turn to end does not): the room the composer gave up
+                // is taken in one eased motion.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 60_000_000)
+                    withAnimation(.smooth(duration: 0.3)) { toBottom() }
+                }
+            }
             .onAppear {
                 toBottom()
                 if !shown.isEmpty { settle(toBottom) }
@@ -208,7 +224,7 @@ public struct TranscriptView: View {
             // While rows arrive, their own scroll takes the thread to the
             // bottom: a second scroll in the middle of it (the composer
             // shrinking as the words sent leave it) fought it.
-            .onVisibleHeightChange { if !holdTop { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
+            .onVisibleHeightChange { if !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
             .sheet(isPresented: Binding(get: { opened.url != nil },
                                         set: { if !$0 { opened.url = nil } })) {
                 if let url = opened.url { ImageViewer(url: url) }
