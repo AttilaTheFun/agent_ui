@@ -39,11 +39,6 @@ public struct TranscriptMessage: Identifiable, Equatable {
         self.imageURLs = imageURLs
         self.imageSizes = imageSizes
     }
-
-    /// The known size of the image at `index`, if any.
-    public func imageSize(at index: Int) -> CGSize? {
-        index < imageSizes.count ? imageSizes[index] : nil
-    }
 }
 
 /// The transcript: the record's messages, and under them one status row
@@ -67,9 +62,6 @@ public struct TranscriptView: View {
     let emptyFootnote: String?
     /// Given when the thread goes back further than what is shown.
     let loadEarlier: (() -> Void)?
-    /// How much of the bottom the composer covers; the thread is scrolled
-    /// to its bottom again when this changes.
-    let bottomInset: CGFloat
     /// A message is being sent this moment: the composer gives up its
     /// lines as the message goes into the thread, and the list keeps its
     /// top still through both, then eases to its bottom — rather than
@@ -78,7 +70,7 @@ public struct TranscriptView: View {
 
     public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
-                loadEarlier: (() -> Void)? = nil, bottomInset: CGFloat = 0, sending: Bool = false) {
+                loadEarlier: (() -> Void)? = nil, sending: Bool = false) {
         self.sending = sending
         self.messages = messages
         self._shown = State(initialValue: messages)
@@ -90,7 +82,6 @@ public struct TranscriptView: View {
         self.emptyBody = emptyBody
         self.emptyFootnote = emptyFootnote
         self.loadEarlier = loadEarlier
-        self.bottomInset = bottomInset
     }
 
     @ObservedObject private var opened = TranscriptImageOpen.shared
@@ -493,7 +484,7 @@ public struct TranscriptRow: View {
             .padding(.horizontal, TranscriptMetrics.edgeInset)
         case .assistant:
             VStack(alignment: .leading, spacing: 6) {
-                if !message.text.isEmpty { AssistantBubble(text: message.text, streaming: false) }
+                if !message.text.isEmpty { AssistantBubble(text: message.text) }
                 ForEach(message.activities.indices, id: \.self) { index in
                     ActivityRow(label: message.activities[index], running: false)
                 }
@@ -553,11 +544,9 @@ public struct TranscriptRow: View {
 
 public struct AssistantBubble: View {
     let text: String
-    let streaming: Bool
 
-    public init(text: String, streaming: Bool) {
+    public init(text: String) {
         self.text = text
-        self.streaming = streaming
     }
 
     /// No avatar or glyph beside the text: on a phone the width is the
@@ -568,11 +557,9 @@ public struct AssistantBubble: View {
             MarkdownText(text)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            // Nothing to act on until the words have stopped arriving.
-            if !streaming, !text.isEmpty { MessageActions(text: text) }
+            if !text.isEmpty { MessageActions(text: text) }
         }
         .padding(.horizontal, TranscriptMetrics.edgeInset)
-        .opacity(streaming ? 0.85 : 1)
     }
 }
 

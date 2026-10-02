@@ -296,9 +296,6 @@ struct AlbumTile: View {
     }
 }
 
-/// The old name of `MessageView`.
-public typealias MessageBubble = MessageView
-
 /// How wide a thread gets before it stops growing and centres instead.
 public enum ThreadMetrics {
     public static let maxContentWidth: CGFloat = 720

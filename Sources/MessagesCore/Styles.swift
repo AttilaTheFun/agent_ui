@@ -7,32 +7,6 @@ import SwiftUI
 // bordered ones.
 
 extension View {
-    /// The filled call-to-action.
-    @ViewBuilder public func prominentButton() -> some View {
-        #if canImport(AppKit) || canImport(UIKit)
-        if #available(macOS 26, iOS 26, *) {
-            buttonStyle(.glassProminent)
-        } else {
-            buttonStyle(.borderedProminent)
-        }
-        #else
-        buttonStyle(.borderedProminent)
-        #endif
-    }
-
-    /// The outlined, secondary action.
-    @ViewBuilder public func secondaryButton() -> some View {
-        #if canImport(AppKit) || canImport(UIKit)
-        if #available(macOS 26, iOS 26, *) {
-            buttonStyle(.glass)
-        } else {
-            buttonStyle(.bordered)
-        }
-        #else
-        buttonStyle(.bordered)
-        #endif
-    }
-
     /// A custom bar item's glass: toolbar buttons get it for a plain label,
     /// not for a composed one, so the pill draws its own on 26.
     @ViewBuilder public func glassCapsule() -> some View {
