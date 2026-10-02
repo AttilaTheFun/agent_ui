@@ -9,5 +9,8 @@ jobs:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
+      # The manifest keeps the Swift 5 language mode (other SwiftUIs build
+      # these sources and are not ready for 6); here the code is held to
+      # the Swift 6 mode, with warnings as errors.
       - name: Test
-        run: swift test
+        run: swift test -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors

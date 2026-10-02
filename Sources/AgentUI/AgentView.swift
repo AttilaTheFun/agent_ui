@@ -70,6 +70,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// Set as a message is sent, for the moment the composer and the
     /// thread both change: the thread holds still through it.
     @State private var sendingNow = false
+    @State private var sendingEnds: Task<Void, Never>?
 
     /// Sending, with the thread told first — in the same update as the
     /// draft clearing and the message going in.
@@ -77,8 +78,11 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         {
             sendingNow = true
             action()
-            Task { @MainActor in
+            // One end at a time: a second send takes over the first's.
+            sendingEnds?.cancel()
+            sendingEnds = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 450_000_000)
+                guard !Task.isCancelled else { return }
                 sendingNow = false
             }
         }

@@ -43,6 +43,25 @@ to one focused change, and say in it how the change was verified.
   - Platform differences go through `MessagesPlatform` (compile-time
     `#if os`), never a runtime platform enum from outside.
   - `CGFloat` comes through `import SwiftUI`, not CoreGraphics.
+- The manifest stays in the Swift 5 language mode, because the other
+  SwiftUIs these sources build against are not ready for 6; CI holds the
+  code to the Swift 6 mode with warnings as errors (`swift test -Xswiftc
+  -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors`), so run that
+  before pushing. No `@unchecked Sendable`, and no shared singletons for
+  view state: state a row needs from its thread goes through the
+  environment (`openedTranscriptImage`).
+- Do not mark a view, or anything a view calls, `@MainActor`. Apple's
+  `View` is main-actor isolated and a portable SwiftUI's may not be: there
+  a marked view cannot be built by an unmarked one, and the marking
+  spreads through every app. For the same reason what a host lends
+  (`TranscriptActions`, `TranscriptImages`) is `nonisolated(unsafe)` for
+  now — the only such state — and a delayed step hops with
+  `Task { @MainActor in … }` rather than calling a `@MainActor` function.
+- A delayed step in a view (`settle`, the arrival of rows, a send) keeps
+  its task and cancels the one before it, so two in a row do not cut
+  each other short. The delays themselves are measured against recordings
+  (Visor's `tools/probes/frames/send_motion.sh`); do not change one
+  without measuring again.
 - Data and navigation belong to the app. Views take value types
   (`ConversationSummary`, `MessageItem`, `TranscriptMessage`) and bindings
   or closures; they do not own selection, presentation, or a data source.
@@ -57,7 +76,7 @@ to one focused change, and say in it how the change was verified.
 
 ## Verifying
 
-`swift build && swift test` for the library. For anything visual, run an
+`swift build && swift test` for the library (and the Swift 6 line above). For anything visual, run an
 example app from the Xcode project (the Mac chrome only looks right from
 an app bundle built against the current SDK). Consumers pin this repo by
 revision in their `Package.swift` and `Package.resolved` (rules_swift_package_manager);

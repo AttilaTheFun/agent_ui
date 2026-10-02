@@ -19,13 +19,13 @@ public struct ConversationTitle: View {
         self.presence = presence
     }
 
-    public static let macAvatar: CGFloat = 40
-    public static let overlap: CGFloat = 5
-    public static let pillHeight: CGFloat = 27
+    nonisolated public static let macAvatar: CGFloat = 40
+    nonisolated public static let overlap: CGFloat = 5
+    nonisolated public static let pillHeight: CGFloat = 27
     /// How far the pill hangs below the Mac's 52pt toolbar when the
     /// avatar's top sits 8pt below the window's top, level with the bar's
     /// buttons: the part of the title that is a titlebar accessory's own band.
-    public static let macHang: CGFloat = 8 + macAvatar - overlap + pillHeight - 52
+    nonisolated public static let macHang: CGFloat = 8 + macAvatar - overlap + pillHeight - 52
 
     private var avatarSize: CGFloat { MessagesPlatform.isMac ? Self.macAvatar : 60 }
     private let barHeight: CGFloat = 44
