@@ -142,6 +142,8 @@ struct SendCapsule: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        // An arrow and nothing else: named for whoever cannot see it.
+        .accessibilityLabel("Send")
     }
 
     private var tint: Color { enabled ? theme.accent : theme.secondaryText.opacity(0.5) }
