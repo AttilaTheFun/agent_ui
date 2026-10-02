@@ -31,9 +31,10 @@ public final class MacConversationTitlebar: ObservableObject {
         observer = NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main
         ) { [weak self] note in
-            MainActor.assumeIsolated { self?.attach(to: note.object as? NSWindow) }
+            let window = note.object as? NSWindow
+            MainActor.assumeIsolated { self?.attach(to: window) }
         }
-        DispatchQueue.main.async { [weak self] in
+        Task { [weak self] in
             self?.attach(to: NSApp.keyWindow ?? NSApp.windows.first { $0.styleMask.contains(.titled) })
         }
     }

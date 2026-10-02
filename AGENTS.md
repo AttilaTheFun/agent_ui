@@ -43,6 +43,21 @@ to one focused change, and say in it how the change was verified.
   - Platform differences go through `MessagesPlatform` (compile-time
     `#if os`), never a runtime platform enum from outside.
   - `CGFloat` comes through `import SwiftUI`, not CoreGraphics.
+- The manifest stays in the Swift 5 language mode, because the other
+  SwiftUIs these sources build against are not ready for 6; CI holds the
+  code to the Swift 6 mode with warnings as errors (`swift test -Xswiftc
+  -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors`), so run that
+  before pushing. No `nonisolated(unsafe)`, no `@unchecked Sendable`, no
+  shared singletons for view state: state a row needs from its thread
+  goes through the environment (`openedTranscriptImage`). What a host
+  lends (`TranscriptActions`, `TranscriptImages`) is main-actor state, and
+  a view that touches it, or that calls a `@MainActor` closure, is marked
+  `@MainActor` — Apple's `View` already is; the portable one is not.
+- A delayed step in a view (`settle`, the arrival of rows, a send) keeps
+  its task and cancels the one before it, so two in a row do not cut
+  each other short. The delays themselves are measured against recordings
+  (Visor's `tools/probes/frames/send_motion.sh`); do not change one
+  without measuring again.
 - Data and navigation belong to the app. Views take value types
   (`ConversationSummary`, `MessageItem`, `TranscriptMessage`) and bindings
   or closures; they do not own selection, presentation, or a data source.
@@ -57,7 +72,7 @@ to one focused change, and say in it how the change was verified.
 
 ## Verifying
 
-`swift build && swift test` for the library. For anything visual, run an
+`swift build && swift test` for the library (and the Swift 6 line above). For anything visual, run an
 example app from the Xcode project (the Mac chrome only looks right from
 an app bundle built against the current SDK). Consumers pin this repo by
 revision in their `Package.swift` and `Package.resolved` (rules_swift_package_manager);
