@@ -1,0 +1,232 @@
+// The agent's transcript: user/assistant bubbles, tool activity rows, the
+// streaming reply, and an empty state — the same rows in both Playgrounds
+// and in Visor. Each app maps its chat model to `TranscriptMessage`.
+
+import SwiftUI
+
+/// The transcript: the record's messages, and under them one status row
+/// that is always there. The rows change only when the record does; what
+/// the turn is doing changes the status row's words, never its height.
+/// The status row is what the thread scrolls to: on opening, when a
+/// message arrives, and with the keyboard.
+public struct TranscriptView: View {
+    let messages: [TranscriptMessage]
+    /// The agent is working: the status row shows its spinner.
+    let busy: Bool
+    /// What the turn is doing now (tool calls, subagents, the task list).
+    let status: [ActivityItem]
+    /// A label for the status row when nothing in `status` is running
+    /// ("Thinking…", or the road to the computer while it is down).
+    let activity: String?
+    /// The last failure, in the status row while the agent is idle.
+    let error: String?
+    let emptyTitle: String
+    let emptyBody: String
+    let emptyFootnote: String?
+    /// Given when the thread goes back further than what is shown.
+    let loadEarlier: (() -> Void)?
+    /// A message is being sent this moment: the composer gives up its
+    /// lines as the message goes into the thread, and the list keeps its
+    /// top still through both, then eases to its bottom — rather than
+    /// dropping with the composer and coming back up.
+    let sending: Bool
+
+    public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
+                error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
+                loadEarlier: (() -> Void)? = nil, sending: Bool = false) {
+        self.sending = sending
+        self.messages = messages
+        self._shown = State(initialValue: messages)
+        self.busy = busy
+        self.status = status
+        self.activity = activity
+        self.error = error
+        self.emptyTitle = emptyTitle
+        self.emptyBody = emptyBody
+        self.emptyFootnote = emptyFootnote
+        self.loadEarlier = loadEarlier
+    }
+
+    /// The picture and the run of tool calls open over the thread, if any.
+    /// Kept here and lent to the rows through the environment: a row is
+    /// rebuilt on every delta that arrives, and state inside one goes
+    /// with it.
+    @State private var openedImage: String?
+    @State private var openedCalls: [TranscriptMessage]?
+
+    static let bottom = "status"
+
+    /// Rows are being put in at the end: the list keeps its top still.
+    @State private var holdTop = false
+    /// Just after a thread's rows are first shown: while the list is still
+    /// measuring them, each change in its height takes it to the bottom
+    /// again, so it lands on the last row however long the measuring takes
+    /// (a Mac's list scrolls to a row before its height is known and stops
+    /// short).
+    @State private var settling = false
+
+    /// The rows drawn: the app's, as of its last change.
+    @State private var shown: [TranscriptMessage]
+
+    /// What ends the settling, and what lets go of the top after rows are
+    /// put in: one of each at a time, so a second settling or a second
+    /// arrival takes over from the first instead of being cut short by it.
+    @State private var settlingEnds: Task<Void, Never>?
+    @State private var arrivalEnds: Task<Void, Never>?
+
+    /// Keeps the thread on its last row while the list lays out its first
+    /// rows: every height change in the next moment scrolls again, and a
+    /// last scroll when the moment is over.
+    private func settle(_ toBottom: @escaping () -> Void) {
+        settling = true
+        settlingEnds?.cancel()
+        settlingEnds = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            toBottom()
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
+            toBottom()
+            settling = false
+        }
+    }
+
+    /// Whether `new` is `old` with rows added after its last.
+    static func appends(_ new: [TranscriptMessage], to old: [TranscriptMessage]) -> Bool {
+        guard let last = old.last, new.last?.id != last.id else { return false }
+        return new.contains { $0.id == last.id }
+    }
+
+    public var body: some View {
+        ScrollViewReader { proxy in
+            let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
+            List {
+                Group {
+                    if let loadEarlier, !shown.isEmpty {
+                        Button(action: loadEarlier) {
+                            Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .transcriptCell()
+                    }
+                    if shown.isEmpty { emptyState }
+                    ForEach(TranscriptBlock.blocks(shown)) { block in
+                        switch block {
+                        case .message(let message): TranscriptRow(message: message).transcriptCell()
+                        case .calls(let run): ToolCallsRow(run: run).transcriptCell()
+                        }
+                    }
+                    StatusRow(busy: busy, status: status, activity: activity, error: error)
+                        .transcriptCell()
+                        .id(Self.bottom)
+                }
+                .listRowSeparator(.hidden)
+                .plainListRow()
+            }
+            .listStyle(.plain)
+            .noMinimumRowHeight()
+            // The bottom stays put as the list or its rows change size.
+            .bottomAnchoredOnResize(!(holdTop || sending))
+            .onChange(of: sending) { _, now in
+                guard now else { return }
+                // Whether or not a row goes in (a message that waits for
+                // the turn to end does not): the room the composer gave up
+                // is taken in one eased motion.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 60_000_000)
+                    withAnimation(.smooth(duration: 0.3)) { toBottom() }
+                }
+            }
+            .onAppear {
+                toBottom()
+                if !shown.isEmpty { settle(toBottom) }
+            }
+            .onContentHeightChange { if settling { toBottom() } }
+            // The rows drawn are this view's copy of the app's, changed as
+            // the app's change. Rows arriving at the end are put in below
+            // what is seen — the list holding its top still for that one
+            // change, rather than its bottom — and the thread then scrolls
+            // up to them, so every row comes in from the bottom. (The
+            // list's own insert animation fades a row in where it will sit
+            // and slides the rows under it down.) Anything else (the rows
+            // replaced whole, earlier ones loaded, a row's words) is not
+            // animated.
+            .onChange(of: messages) { _, new in
+                // Rows after the last while the thread is still settling
+                // after it opened are history catching up (the whole
+                // transcript arriving after the cached rows), not a reply:
+                // they go in with the thread kept at its bottom, not
+                // brought in from below.
+                let appended = Self.appends(new, to: shown) && !settling
+                if appended {
+                    holdTop = true
+                    shown = new
+                    // The scroll once the list has the rows and the box its
+                    // new height (the words sent leave it in the same
+                    // change): a scroll made before either has landed
+                    // measures against the old and goes nowhere.
+                    arrivalEnds?.cancel()
+                    arrivalEnds = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 60_000_000)
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.smooth(duration: 0.3)) { toBottom() }
+                        try? await Task.sleep(nanoseconds: 350_000_000)
+                        guard !Task.isCancelled else { return }
+                        holdTop = false
+                    }
+                } else {
+                    let first = shown.isEmpty
+                    let moved = new.last?.id != shown.last?.id
+                    shown = new
+                    // Once the layout pass that takes the rows has been
+                    // applied.
+                    if moved {
+                        Task { @MainActor in
+                            // Where the main actor is not a queue of its
+                            // own, one more turn lets the layout land.
+                            #if !canImport(Dispatch)
+                            await Task.yield()
+                            #endif
+                            toBottom()
+                        }
+                    }
+                    // The first rows of a thread opened before they had
+                    // come: the list's first scroll measures rows it has
+                    // only estimated and stops short, so it goes again as
+                    // they are laid out.
+                    if first, !new.isEmpty { settle(toBottom) }
+                }
+            }
+            // The room the thread has changed — the keyboard coming or
+            // going, the composer growing: the thread eases to the bottom
+            // over about the time the keyboard takes, rather than jumping
+            // there while the keyboard is still on its way.
+            // While rows arrive, their own scroll takes the thread to the
+            // bottom: a second scroll in the middle of it (the composer
+            // shrinking as the words sent leave it) fought it.
+            .onVisibleHeightChange { if !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
+            .environment(\.openedTranscriptImage, $openedImage)
+            .environment(\.openedToolCalls, $openedCalls)
+            .sheet(isPresented: Binding(get: { openedImage != nil },
+                                        set: { if !$0 { openedImage = nil } })) {
+                if let url = openedImage { ImageViewer(url: url) }
+            }
+            .sheet(isPresented: Binding(get: { openedCalls != nil },
+                                        set: { if !$0 { openedCalls = nil } })) {
+                if let run = openedCalls { ToolCallsSheet(run: run) }
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(emptyTitle).font(.title3.bold())
+            Text(emptyBody).foregroundColor(.secondary)
+            if let emptyFootnote {
+                Text(emptyFootnote).font(.caption).foregroundColor(.secondary)
+            }
+        }
+        .padding()
+    }
+}

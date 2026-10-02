@@ -18,10 +18,3 @@ public struct ActivityItem: Identifiable, Equatable, Sendable {
         self.id = id; self.kind = kind; self.label = label; self.running = running; self.tasks = tasks
     }
 }
-
-public struct ActivityTask: Equatable, Sendable {
-    public enum State: Equatable, Sendable { case pending, active, done }
-    public var title: String
-    public var state: State
-    public init(title: String, state: State) { self.title = title; self.state = state }
-}
