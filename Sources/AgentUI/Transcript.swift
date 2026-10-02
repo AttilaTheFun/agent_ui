@@ -46,7 +46,6 @@ public struct TranscriptMessage: Identifiable, Equatable, Sendable {
 /// the turn is doing changes the status row's words, never its height.
 /// The status row is what the thread scrolls to: on opening, when a
 /// message arrives, and with the keyboard.
-@MainActor
 public struct TranscriptView: View {
     let messages: [TranscriptMessage]
     /// The agent is working: the status row shows its spinner.
@@ -115,7 +114,7 @@ public struct TranscriptView: View {
     /// Keeps the thread on its last row while the list lays out its first
     /// rows: every height change in the next moment scrolls again, and a
     /// last scroll when the moment is over.
-    private func settle(_ toBottom: @escaping @MainActor () -> Void) {
+    private func settle(_ toBottom: @escaping () -> Void) {
         settling = true
         settlingEnds?.cancel()
         settlingEnds = Task { @MainActor in
@@ -137,7 +136,7 @@ public struct TranscriptView: View {
 
     public var body: some View {
         ScrollViewReader { proxy in
-            let toBottom: @MainActor () -> Void = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
+            let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
             List {
                 Group {
                     if let loadEarlier, !shown.isEmpty {
@@ -217,7 +216,18 @@ public struct TranscriptView: View {
                     let first = shown.isEmpty
                     let moved = new.last?.id != shown.last?.id
                     shown = new
-                    if moved { afterLayout(toBottom) }
+                    // Once the layout pass that takes the rows has been
+                    // applied.
+                    if moved {
+                        Task { @MainActor in
+                            // Where the main actor is not a queue of its
+                            // own, one more turn lets the layout land.
+                            #if !canImport(Dispatch)
+                            await Task.yield()
+                            #endif
+                            toBottom()
+                        }
+                    }
                     // The first rows of a thread opened before they had
                     // come: the list's first scroll measures rows it has
                     // only estimated and stops short, so it goes again as
@@ -601,7 +611,6 @@ public struct AssistantBubble: View {
 /// What to do with something the agent said: take all of it, or send it
 /// on. Selecting part of it is the text's own business — these are for
 /// when the whole thing is wanted.
-@MainActor
 public struct MessageActions: View {
     let text: String
     @State private var copied = false
@@ -646,10 +655,14 @@ public struct MessageActions: View {
 
 /// The two things a host has to lend the transcript: somewhere to put
 /// text, and somewhere to send it. Apple has both of its own.
-@MainActor
+///
+/// Set once, as the app starts, and read from views. Unchecked for now:
+/// these belong to the main actor, and are to be declared so once every
+/// SwiftUI these sources build against isolates its views to it — until
+/// then a view on the portable one could not read them.
 public enum TranscriptActions {
-    public static var copy: ((String) -> Void)?
-    public static var share: ((String) -> Void)?
+    nonisolated(unsafe) public static var copy: ((String) -> Void)?
+    nonisolated(unsafe) public static var share: ((String) -> Void)?
 
     static func put(_ text: String) {
         if let copy { copy(text); return }
@@ -803,20 +816,22 @@ public enum TranscriptMetrics {
 /// (remote / blob URLs on the web); an app whose images are local files
 /// installs its own loader (the iOS Playground decodes them from disk —
 /// `AsyncImage` over `file://` URLs is unreliable there).
-@MainActor
+///
+/// Set once, as the app starts, and read from views; unchecked for the
+/// same reason `TranscriptActions` is.
 public enum TranscriptImages {
     /// Draw the picture behind a reference, no larger than `maxEdge` on
     /// its longest side (0 for as large as it likes). The app returns it
     /// already at its own proportions: a box the size of the largest
     /// allowed picture would leave a tall screenshot floating in the
     /// middle of it, and the rounded corner clipping empty space.
-    public static var render: ((String, CGFloat) -> AnyView)?
+    nonisolated(unsafe) public static var render: ((String, CGFloat) -> AnyView)?
     #if canImport(AppKit) || canImport(UIKit)
     /// The bytes behind a reference, for a viewer that wants to hand the
     /// picture to a share sheet (and so to Save Image). Apple only: the
     /// portable SwiftUI has no Foundation to put them in and nowhere to
     /// share them to.
-    public static var data: ((String) async -> Data?)?
+    nonisolated(unsafe) public static var data: ((String) async -> Data?)?
     #endif
 }
 
@@ -872,7 +887,6 @@ public struct ImageStrip: View {
 }
 
 /// One picture, however this app loads them.
-@MainActor
 struct TranscriptImage: View {
     let url: String
     /// The longest side it may take; 0 for as much room as there is.
@@ -955,18 +969,6 @@ public struct ContextRing: View {
             out.append(digit)
         }
         return out
-    }
-}
-
-/// Runs after the current layout pass has been applied.
-func afterLayout(_ action: @escaping @MainActor () -> Void) {
-    Task { @MainActor in
-        // Where the main actor is not a queue of its own, one more turn
-        // lets the layout land first.
-        #if !canImport(Dispatch)
-        await Task.yield()
-        #endif
-        action()
     }
 }
 

@@ -47,12 +47,16 @@ to one focused change, and say in it how the change was verified.
   SwiftUIs these sources build against are not ready for 6; CI holds the
   code to the Swift 6 mode with warnings as errors (`swift test -Xswiftc
   -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors`), so run that
-  before pushing. No `nonisolated(unsafe)`, no `@unchecked Sendable`, no
-  shared singletons for view state: state a row needs from its thread
-  goes through the environment (`openedTranscriptImage`). What a host
-  lends (`TranscriptActions`, `TranscriptImages`) is main-actor state, and
-  a view that touches it, or that calls a `@MainActor` closure, is marked
-  `@MainActor` — Apple's `View` already is; the portable one is not.
+  before pushing. No `@unchecked Sendable`, and no shared singletons for
+  view state: state a row needs from its thread goes through the
+  environment (`openedTranscriptImage`).
+- Do not mark a view, or anything a view calls, `@MainActor`. Apple's
+  `View` is main-actor isolated and a portable SwiftUI's may not be: there
+  a marked view cannot be built by an unmarked one, and the marking
+  spreads through every app. For the same reason what a host lends
+  (`TranscriptActions`, `TranscriptImages`) is `nonisolated(unsafe)` for
+  now — the only such state — and a delayed step hops with
+  `Task { @MainActor in … }` rather than calling a `@MainActor` function.
 - A delayed step in a view (`settle`, the arrival of rows, a send) keeps
   its task and cancels the one before it, so two in a row do not cut
   each other short. The delays themselves are measured against recordings

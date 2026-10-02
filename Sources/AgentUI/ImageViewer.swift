@@ -9,7 +9,6 @@ import SwiftUI
 import Foundation
 #endif
 
-@MainActor
 public struct ImageViewer: View {
     let url: String
     @Environment(\.dismiss) private var dismiss

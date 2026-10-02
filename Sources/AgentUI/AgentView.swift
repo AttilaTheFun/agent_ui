@@ -6,7 +6,6 @@ import SwiftUI
 /// current from whatever drives the agent (an in-process tool loop, a
 /// Claude Code or Codex process on another machine); the composer's
 /// controls and attachments are the app's views.
-@MainActor
 public struct AgentView<Controls: View, Attachments: View>: View {
     let messages: [TranscriptMessage]
     let status: [ActivityItem]
