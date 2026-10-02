@@ -67,12 +67,10 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.pick = pick
     }
 
-    /// The composer's height, measured: the transcript re-pins its bottom
-    /// as the box grows with a longer message.
-    @State private var composerHeight: CGFloat = 0
     /// Set as a message is sent, for the moment the composer and the
     /// thread both change: the thread holds still through it.
     @State private var sendingNow = false
+    @State private var sendingEnds: Task<Void, Never>?
 
     /// Sending, with the thread told first — in the same update as the
     /// draft clearing and the message going in.
@@ -80,8 +78,11 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         {
             sendingNow = true
             action()
-            Task { @MainActor in
+            // One end at a time: a second send takes over the first's.
+            sendingEnds?.cancel()
+            sendingEnds = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 450_000_000)
+                guard !Task.isCancelled else { return }
                 sendingNow = false
             }
         }
@@ -90,16 +91,11 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     public var body: some View {
         TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                        emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
-                       bottomInset: composerHeight, sending: sendingNow)
+                       sending: sendingNow)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
                               sending: sending, suggestions: suggestions, pick: pick, controls: controls, attachments: attachments)
-                    .background(GeometryReader { geometry in
-                        Color.clear
-                            .onAppear { composerHeight = geometry.size.height }
-                            .onChange(of: geometry.size.height) { height in composerHeight = height }
-                    })
             }
             .scrollDismissesKeyboard(.interactively)
     }

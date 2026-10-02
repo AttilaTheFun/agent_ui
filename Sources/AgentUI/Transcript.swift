@@ -11,8 +11,8 @@ import AppKit
 import Foundation
 #endif
 
-public struct TranscriptMessage: Identifiable, Equatable {
-    public enum Role: Equatable { case user, assistant, tool }
+public struct TranscriptMessage: Identifiable, Equatable, Sendable {
+    public enum Role: Equatable, Sendable { case user, assistant, tool }
 
     public var id: String
     public var role: Role
@@ -39,11 +39,6 @@ public struct TranscriptMessage: Identifiable, Equatable {
         self.imageURLs = imageURLs
         self.imageSizes = imageSizes
     }
-
-    /// The known size of the image at `index`, if any.
-    public func imageSize(at index: Int) -> CGSize? {
-        index < imageSizes.count ? imageSizes[index] : nil
-    }
 }
 
 /// The transcript: the record's messages, and under them one status row
@@ -67,9 +62,6 @@ public struct TranscriptView: View {
     let emptyFootnote: String?
     /// Given when the thread goes back further than what is shown.
     let loadEarlier: (() -> Void)?
-    /// How much of the bottom the composer covers; the thread is scrolled
-    /// to its bottom again when this changes.
-    let bottomInset: CGFloat
     /// A message is being sent this moment: the composer gives up its
     /// lines as the message goes into the thread, and the list keeps its
     /// top still through both, then eases to its bottom — rather than
@@ -78,7 +70,7 @@ public struct TranscriptView: View {
 
     public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
-                loadEarlier: (() -> Void)? = nil, bottomInset: CGFloat = 0, sending: Bool = false) {
+                loadEarlier: (() -> Void)? = nil, sending: Bool = false) {
         self.sending = sending
         self.messages = messages
         self._shown = State(initialValue: messages)
@@ -90,11 +82,14 @@ public struct TranscriptView: View {
         self.emptyBody = emptyBody
         self.emptyFootnote = emptyFootnote
         self.loadEarlier = loadEarlier
-        self.bottomInset = bottomInset
     }
 
-    @ObservedObject private var opened = TranscriptImageOpen.shared
-    @ObservedObject private var openedCalls = ToolCallsOpen.shared
+    /// The picture and the run of tool calls open over the thread, if any.
+    /// Kept here and lent to the rows through the environment: a row is
+    /// rebuilt on every delta that arrives, and state inside one goes
+    /// with it.
+    @State private var openedImage: String?
+    @State private var openedCalls: [TranscriptMessage]?
 
     static let bottom = "status"
 
@@ -110,15 +105,24 @@ public struct TranscriptView: View {
     /// The rows drawn: the app's, as of its last change.
     @State private var shown: [TranscriptMessage]
 
+    /// What ends the settling, and what lets go of the top after rows are
+    /// put in: one of each at a time, so a second settling or a second
+    /// arrival takes over from the first instead of being cut short by it.
+    @State private var settlingEnds: Task<Void, Never>?
+    @State private var arrivalEnds: Task<Void, Never>?
+
     /// Keeps the thread on its last row while the list lays out its first
     /// rows: every height change in the next moment scrolls again, and a
     /// last scroll when the moment is over.
-    private func settle(_ toBottom: @escaping @MainActor () -> Void) {
+    private func settle(_ toBottom: @escaping () -> Void) {
         settling = true
-        Task { @MainActor in
+        settlingEnds?.cancel()
+        settlingEnds = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
             toBottom()
             try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
             toBottom()
             settling = false
         }
@@ -199,17 +203,31 @@ public struct TranscriptView: View {
                     // new height (the words sent leave it in the same
                     // change): a scroll made before either has landed
                     // measures against the old and goes nowhere.
-                    Task { @MainActor in
+                    arrivalEnds?.cancel()
+                    arrivalEnds = Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 60_000_000)
+                        guard !Task.isCancelled else { return }
                         withAnimation(.smooth(duration: 0.3)) { toBottom() }
                         try? await Task.sleep(nanoseconds: 350_000_000)
+                        guard !Task.isCancelled else { return }
                         holdTop = false
                     }
                 } else {
                     let first = shown.isEmpty
                     let moved = new.last?.id != shown.last?.id
                     shown = new
-                    if moved { afterLayout(toBottom) }
+                    // Once the layout pass that takes the rows has been
+                    // applied.
+                    if moved {
+                        Task { @MainActor in
+                            // Where the main actor is not a queue of its
+                            // own, one more turn lets the layout land.
+                            #if !canImport(Dispatch)
+                            await Task.yield()
+                            #endif
+                            toBottom()
+                        }
+                    }
                     // The first rows of a thread opened before they had
                     // come: the list's first scroll measures rows it has
                     // only estimated and stops short, so it goes again as
@@ -225,13 +243,15 @@ public struct TranscriptView: View {
             // bottom: a second scroll in the middle of it (the composer
             // shrinking as the words sent leave it) fought it.
             .onVisibleHeightChange { if !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
-            .sheet(isPresented: Binding(get: { opened.url != nil },
-                                        set: { if !$0 { opened.url = nil } })) {
-                if let url = opened.url { ImageViewer(url: url) }
+            .environment(\.openedTranscriptImage, $openedImage)
+            .environment(\.openedToolCalls, $openedCalls)
+            .sheet(isPresented: Binding(get: { openedImage != nil },
+                                        set: { if !$0 { openedImage = nil } })) {
+                if let url = openedImage { ImageViewer(url: url) }
             }
-            .sheet(isPresented: Binding(get: { openedCalls.run != nil },
-                                        set: { if !$0 { openedCalls.run = nil } })) {
-                if let run = openedCalls.run { ToolCallsSheet(run: run) }
+            .sheet(isPresented: Binding(get: { openedCalls != nil },
+                                        set: { if !$0 { openedCalls = nil } })) {
+                if let run = openedCalls { ToolCallsSheet(run: run) }
             }
         }
     }
@@ -378,25 +398,41 @@ public enum TranscriptBlock: Identifiable {
     }
 }
 
-/// Which run of tool calls is open for inspection, if any. Outside the
-/// view tree for the same reason the open picture is.
-public final class ToolCallsOpen: ObservableObject, @unchecked Sendable {
-    public static let shared = ToolCallsOpen()
-    @Published public var run: [TranscriptMessage]?
-    private init() {}
+private struct OpenedTranscriptImageKey: EnvironmentKey {
+    static let defaultValue: Binding<String?> = .constant(nil)
+}
+
+private struct OpenedToolCallsKey: EnvironmentKey {
+    static let defaultValue: Binding<[TranscriptMessage]?> = .constant(nil)
+}
+
+extension EnvironmentValues {
+    /// The picture open over the thread a row is in: a row sets it to
+    /// have the thread show that picture whole.
+    var openedTranscriptImage: Binding<String?> {
+        get { self[OpenedTranscriptImageKey.self] }
+        set { self[OpenedTranscriptImageKey.self] = newValue }
+    }
+
+    /// The run of tool calls open for inspection over the thread.
+    var openedToolCalls: Binding<[TranscriptMessage]?> {
+        get { self[OpenedToolCallsKey.self] }
+        set { self[OpenedToolCallsKey.self] = newValue }
+    }
 }
 
 /// A run of tool calls as one line — "Made 12 tool calls" — behind the
 /// same chevron a single call has; tapping opens the sheet that lists them.
 public struct ToolCallsRow: View {
     let run: [TranscriptMessage]
+    @Environment(\.openedToolCalls) private var opened
 
     public init(run: [TranscriptMessage]) { self.run = run }
 
     public var body: some View {
         let count = TranscriptBlock.callCount(run)
         Button {
-            ToolCallsOpen.shared.run = run
+            opened.wrappedValue = run
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "chevron.right.circle").foregroundColor(.secondary)
@@ -493,7 +529,7 @@ public struct TranscriptRow: View {
             .padding(.horizontal, TranscriptMetrics.edgeInset)
         case .assistant:
             VStack(alignment: .leading, spacing: 6) {
-                if !message.text.isEmpty { AssistantBubble(text: message.text, streaming: false) }
+                if !message.text.isEmpty { AssistantBubble(text: message.text) }
                 ForEach(message.activities.indices, id: \.self) { index in
                     ActivityRow(label: message.activities[index], running: false)
                 }
@@ -553,11 +589,9 @@ public struct TranscriptRow: View {
 
 public struct AssistantBubble: View {
     let text: String
-    let streaming: Bool
 
-    public init(text: String, streaming: Bool) {
+    public init(text: String) {
         self.text = text
-        self.streaming = streaming
     }
 
     /// No avatar or glyph beside the text: on a phone the width is the
@@ -568,11 +602,9 @@ public struct AssistantBubble: View {
             MarkdownText(text)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            // Nothing to act on until the words have stopped arriving.
-            if !streaming, !text.isEmpty { MessageActions(text: text) }
+            if !text.isEmpty { MessageActions(text: text) }
         }
         .padding(.horizontal, TranscriptMetrics.edgeInset)
-        .opacity(streaming ? 0.85 : 1)
     }
 }
 
@@ -623,6 +655,11 @@ public struct MessageActions: View {
 
 /// The two things a host has to lend the transcript: somewhere to put
 /// text, and somewhere to send it. Apple has both of its own.
+///
+/// Set once, as the app starts, and read from views. Unchecked for now:
+/// these belong to the main actor, and are to be declared so once every
+/// SwiftUI these sources build against isolates its views to it — until
+/// then a view on the portable one could not read them.
 public enum TranscriptActions {
     nonisolated(unsafe) public static var copy: ((String) -> Void)?
     nonisolated(unsafe) public static var share: ((String) -> Void)?
@@ -779,6 +816,9 @@ public enum TranscriptMetrics {
 /// (remote / blob URLs on the web); an app whose images are local files
 /// installs its own loader (the iOS Playground decodes them from disk —
 /// `AsyncImage` over `file://` URLs is unreliable there).
+///
+/// Set once, as the app starts, and read from views; unchecked for the
+/// same reason `TranscriptActions` is.
 public enum TranscriptImages {
     /// Draw the picture behind a reference, no larger than `maxEdge` on
     /// its longest side (0 for as large as it likes). The app returns it
@@ -802,6 +842,7 @@ public struct ImageStrip: View {
     let urls: [String]
     let sizes: [CGSize?]
     let alignment: HorizontalAlignment
+    @Environment(\.openedTranscriptImage) private var opened
 
     public init(urls: [String], sizes: [CGSize?] = [], alignment: HorizontalAlignment = .leading) {
         self.urls = urls
@@ -822,11 +863,11 @@ public struct ImageStrip: View {
                 if alignment == .trailing { Spacer(minLength: 0) }
                 ForEach(Array(urls.enumerated()), id: \.element) { index, url in
                     Button {
-                        // Not held here: a transcript row is rebuilt on
-                        // every delta that arrives, and state inside one
-                        // goes with it — which is why the viewer opened
-                        // onto nothing.
-                        TranscriptImageOpen.shared.url = url
+                        // Held by the thread, not here: a transcript row
+                        // is rebuilt on every delta that arrives, and
+                        // state inside one goes with it — which is why
+                        // the viewer once opened onto nothing.
+                        opened.wrappedValue = url
                     } label: {
                         TranscriptImage(url: url, maxEdge: TranscriptMetrics.thumbnail)
                             .frame(width: reserved(index)?.width, height: reserved(index)?.height)
@@ -843,15 +884,6 @@ public struct ImageStrip: View {
             .frame(maxWidth: .infinity)
         }
     }
-}
-
-/// Which picture is open, if any. Outside the view tree, because the row
-/// that was tapped is rebuilt constantly and anything kept inside it
-/// disappears between the tap and the sheet.
-public final class TranscriptImageOpen: ObservableObject, @unchecked Sendable {
-    public static let shared = TranscriptImageOpen()
-    @Published public var url: String?
-    private init() {}
 }
 
 /// One picture, however this app loads them.
@@ -940,18 +972,6 @@ public struct ContextRing: View {
     }
 }
 
-/// Runs after the current layout pass has been applied.
-func afterLayout(_ action: @escaping @MainActor () -> Void) {
-    #if canImport(Dispatch)
-    DispatchQueue.main.async { action() }
-    #else
-    Task { @MainActor in
-        await Task.yield()
-        action()
-    }
-    #endif
-}
-
 /// A goal the user set (`/goal`): the agent keeps working until it is met.
 /// Set, it says what it asks; met, why it is. Long words fold to a few
 /// lines, and a tap unfolds them.
@@ -961,7 +981,7 @@ struct GoalRow: View {
     @State private var expanded = false
 
     /// Whether a message is a goal's, shown as its own row.
-    static func shows(_ message: TranscriptMessage) -> Bool {
+    nonisolated static func shows(_ message: TranscriptMessage) -> Bool {
         message.role == .tool && (message.toolName == "goal" || message.toolName == "goal-met")
     }
 

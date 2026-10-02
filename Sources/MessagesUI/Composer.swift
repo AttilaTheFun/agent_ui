@@ -1,8 +1,5 @@
 import MessagesCore
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 /// What the app adds to the composer: a leading control (the + of
 /// Messages), a trailing one, both optional. Everything else — the
@@ -28,7 +25,8 @@ extension ComposerAccessories where Leading == EmptyView, Trailing == EmptyView 
 public struct MessageComposer<Leading: View, Trailing: View>: View {
     @Environment(\.messagesTheme) private var theme
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @ObservedObject private var keyboard = KeyboardState.shared
+    /// The field is being typed in: on a phone, the keyboard is up.
+    @FocusState private var typing: Bool
     @Binding var draft: String
     let placeholder: String
     let accessories: ComposerAccessories<Leading, Trailing>
@@ -53,11 +51,11 @@ public struct MessageComposer<Leading: View, Trailing: View>: View {
             if showsSendButton { phone } else { desktop }
             accessories.trailing
         }
-        .padding(.horizontal, ComposerMetrics.horizontalInset(sizeClass: sizeClass, keyboardVisible: keyboard.visible))
+        .padding(.horizontal, ComposerMetrics.horizontalInset(sizeClass: sizeClass, keyboardVisible: typing))
         .padding(.top, showsSendButton ? 6 : 8)
         // A phone's composer sits on the home-indicator safe area; a browser
         // tab has none, so it keeps 8pt of its own above the edge.
-        .padding(.bottom, showsSendButton ? (keyboard.visible ? 16 : (MessagesPlatform.isWeb ? 8 : 0)) : 8)
+        .padding(.bottom, showsSendButton ? (typing ? 16 : (MessagesPlatform.isWeb ? 8 : 0)) : 8)
         // The composer lines up with the messages above it.
         .frame(maxWidth: ThreadMetrics.maxContentWidth)
         .frame(maxWidth: .infinity)
@@ -69,6 +67,7 @@ public struct MessageComposer<Leading: View, Trailing: View>: View {
                 TextField(placeholder, text: $draft, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...6)
+                    .focused($typing)
                     .frame(maxWidth: .infinity, minHeight: 18, alignment: .topLeading)
                     .padding(.leading, 14)
                     .padding(.trailing, 52)
@@ -125,24 +124,6 @@ extension MessageComposer where Leading == EmptyView, Trailing == EmptyView {
     }
 }
 
-/// Whether the on-screen keyboard is up (iOS); always down elsewhere.
-final class KeyboardState: ObservableObject {
-    static let shared = KeyboardState()
-    @Published var visible = false
-
-    private init() {
-        #if canImport(UIKit) && !os(tvOS)
-        let center = NotificationCenter.default
-        center.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.visible = true
-        }
-        center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.visible = false
-        }
-        #endif
-    }
-}
-
 /// The phone composer's send button: a 40×30 capsule, glass on 26 and a
 /// plain fill elsewhere, tinted when there is something to send.
 struct SendCapsule: View {
@@ -161,6 +142,8 @@ struct SendCapsule: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        // An arrow and nothing else: named for whoever cannot see it.
+        .accessibilityLabel("Send")
     }
 
     private var tint: Color { enabled ? theme.accent : theme.secondaryText.opacity(0.5) }

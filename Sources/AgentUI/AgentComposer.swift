@@ -310,15 +310,6 @@ extension View {
             .contentShape(Circle())
     }
 
-    /// A composer control that is a drawing of its own — a gauge, an
-    /// avatar — and wants no chrome under it: the same circle as the send
-    /// button, and nothing behind it.
-    public func agentBareCircleButton() -> some View {
-        buttonStyle(.plain)
-            .frame(width: AgentComposerMetrics.controlHeight, height: AgentComposerMetrics.controlHeight)
-            .contentShape(Circle())
-    }
-
     /// A composer pill (the model, the effort, a mode): a solid tinted
     /// capsule, which reads against the glass box where glass-on-glass all
     /// but disappears.
