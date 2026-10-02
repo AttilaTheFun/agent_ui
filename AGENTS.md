@@ -16,12 +16,14 @@ to one focused change, and say in it how the change was verified.
 - `Package.swift` at the root: the four products (InboxUI, MessagesUI,
   AgentUI, NavigationUI), the shared `MessagesCore` target, the tests, and
   `ExampleData` (the examples' fake store). Nothing else.
-- `Sources/MessagesCore/`: Model, Theme, Styles, Avatar, Platform — what the
-  inbox and the thread share; re-exported by InboxUI and MessagesUI.
-- `Sources/InboxUI/`: InboxView. `Sources/MessagesUI/`: ThreadView (with
-  MessageView), Composer, Title, MacTitlebar. `Sources/AgentUI/`: AgentView,
-  Transcript, AgentComposer. `Sources/NavigationUI/`: SplitView,
-  InspectorView.
+- `Sources/MessagesCore/`: the model values, MessagesTheme, the native
+  styles, Avatar, MessagesPlatform — what the inbox and the thread share;
+  re-exported by InboxUI and MessagesUI.
+- `Sources/InboxUI/`: InboxView. `Sources/MessagesUI/`: ThreadView,
+  MessageView, MessageComposer, ConversationTitle, MacConversationTitlebar.
+  `Sources/AgentUI/`: AgentView, TranscriptView and its rows, AgentComposer.
+  `Sources/NavigationUI/`: SplitView, InspectorView. A file per type, named
+  after it; `View+Topic.swift` for what a target adds to `View`.
 - `Tests/AgentUIPackageTests/`: XCTest, `swift test`.
 - `Examples/`: the four example apps as an Xcode project generated from
   `project.yml` with XcodeGen, plus `ExampleData`. Run them from Xcode;
@@ -50,13 +52,13 @@ to one focused change, and say in it how the change was verified.
   before pushing. No `@unchecked Sendable`, and no shared singletons for
   view state: state a row needs from its thread goes through the
   environment (`openedTranscriptImage`).
-- Do not mark a view, or anything a view calls, `@MainActor`. Apple's
-  `View` is main-actor isolated and a portable SwiftUI's may not be: there
-  a marked view cannot be built by an unmarked one, and the marking
-  spreads through every app. For the same reason what a host lends
-  (`TranscriptActions`, `TranscriptImages`) is `nonisolated(unsafe)` for
-  now — the only such state — and a delayed step hops with
-  `Task { @MainActor in … }` rather than calling a `@MainActor` function.
+- Views are main-actor isolated by their conformance to `View`, on Apple's
+  SwiftUI and on Isomer's (since Isomer 0.14), so a view needs no explicit
+  `@MainActor`, and should not carry one. What a host lends
+  (`TranscriptActions`, `TranscriptImages`) is `@MainActor` state. No
+  `nonisolated(unsafe)` anywhere.
+- One public or internal type per file, named after it; only nested types
+  (`Foo.Bar`) and `private`/`fileprivate` helpers share a file.
 - A delayed step in a view (`settle`, the arrival of rows, a send) keeps
   its task and cancels the one before it, so two in a row do not cut
   each other short. The delays themselves are measured against recordings

@@ -1,23 +1,6 @@
 import MessagesCore
 import SwiftUI
 
-/// What the app adds to the composer: a leading control (the + of
-/// Messages), a trailing one, both optional. Everything else — the
-/// field, the send button, the geometry — is the composer's.
-public struct ComposerAccessories<Leading: View, Trailing: View> {
-    let leading: Leading
-    let trailing: Trailing
-
-    public init(@ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
-        self.leading = leading()
-        self.trailing = trailing()
-    }
-}
-
-extension ComposerAccessories where Leading == EmptyView, Trailing == EmptyView {
-    public static var none: ComposerAccessories { .init(leading: { EmptyView() }, trailing: { EmptyView() }) }
-}
-
 /// Messages' composer. On a phone a pill that grows upward with a 40×30
 /// send capsule pinned 6pt from its bottom right corner, 16pt from the
 /// keyboard and sides while typing and 24pt from the sides, flush with
@@ -94,69 +77,8 @@ public struct MessageComposer<Leading: View, Trailing: View>: View {
     }
 }
 
-/// The composer's geometry, shared with the thread. On a phone the bubbles
-/// sit 16pt from the edges, always; the composer sits with them while the
-/// keyboard is up and moves out to 24pt when it is away, to sit with the
-/// screen's corners. On a desktop both are 12pt.
-public enum ComposerMetrics {
-    public static func isPhoneComposer(sizeClass: UserInterfaceSizeClass?) -> Bool {
-        if MessagesPlatform.isDesktop { return false }
-        if MessagesPlatform.isWeb { return sizeClass == .compact }
-        return true
-    }
-
-    /// The composer's side inset.
-    public static func horizontalInset(sizeClass: UserInterfaceSizeClass?, keyboardVisible: Bool) -> CGFloat {
-        // The 24pt rests inside an iPhone's rounded corners; a browser tab
-        // has no such corners, so the web keeps the messages' 16pt throughout.
-        isPhoneComposer(sizeClass: sizeClass) ? ((keyboardVisible || MessagesPlatform.isWeb) ? 16 : 24) : 12
-    }
-
-    /// The messages' side inset: the composer's with the keyboard up.
-    public static func messageInset(sizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        isPhoneComposer(sizeClass: sizeClass) ? 16 : 12
-    }
-}
-
 extension MessageComposer where Leading == EmptyView, Trailing == EmptyView {
     public init(draft: Binding<String>, placeholder: String = "Message", send: @escaping () -> Void) {
         self.init(draft: draft, placeholder: placeholder, accessories: .none, send: send)
-    }
-}
-
-/// The phone composer's send button: a 40×30 capsule, glass on 26 and a
-/// plain fill elsewhere, tinted when there is something to send.
-struct SendCapsule: View {
-    @Environment(\.messagesTheme) private var theme
-    let enabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "arrow.up")
-                .font(.body.weight(.semibold))
-                .foregroundColor(.white)
-                .frame(width: 40, height: 30)
-                .background(glassOrFill)
-                .clipShape(RoundedRectangle(cornerRadius: 15))
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        // An arrow and nothing else: named for whoever cannot see it.
-        .accessibilityLabel("Send")
-    }
-
-    private var tint: Color { enabled ? theme.accent : theme.secondaryText.opacity(0.5) }
-
-    @ViewBuilder private var glassOrFill: some View {
-        #if canImport(AppKit) || canImport(UIKit)
-        if #available(macOS 26, iOS 26, *) {
-            Color.clear.glassEffect(.regular.tint(tint).interactive(), in: .capsule)
-        } else {
-            tint
-        }
-        #else
-        tint
-        #endif
     }
 }

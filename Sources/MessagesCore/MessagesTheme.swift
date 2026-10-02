@@ -19,21 +19,3 @@ public struct MessagesTheme: Sendable {
 
     public init() {}
 }
-
-private struct MessagesThemeKey: EnvironmentKey {
-    static let defaultValue = MessagesTheme()
-}
-
-extension EnvironmentValues {
-    public var messagesTheme: MessagesTheme {
-        get { self[MessagesThemeKey.self] }
-        set { self[MessagesThemeKey.self] = newValue }
-    }
-}
-
-extension View {
-    /// The colours for everything MessagesUI draws beneath this view.
-    public func messagesTheme(_ theme: MessagesTheme) -> some View {
-        environment(\.messagesTheme, theme)
-    }
-}
