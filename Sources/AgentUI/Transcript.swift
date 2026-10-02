@@ -656,13 +656,11 @@ public struct MessageActions: View {
 /// The two things a host has to lend the transcript: somewhere to put
 /// text, and somewhere to send it. Apple has both of its own.
 ///
-/// Set once, as the app starts, and read from views. Unchecked for now:
-/// these belong to the main actor, and are to be declared so once every
-/// SwiftUI these sources build against isolates its views to it — until
-/// then a view on the portable one could not read them.
+/// Main-actor state: set as the app starts, read from views.
+@MainActor
 public enum TranscriptActions {
-    nonisolated(unsafe) public static var copy: ((String) -> Void)?
-    nonisolated(unsafe) public static var share: ((String) -> Void)?
+    public static var copy: ((String) -> Void)?
+    public static var share: ((String) -> Void)?
 
     static func put(_ text: String) {
         if let copy { copy(text); return }
@@ -817,21 +815,21 @@ public enum TranscriptMetrics {
 /// installs its own loader (the iOS Playground decodes them from disk —
 /// `AsyncImage` over `file://` URLs is unreliable there).
 ///
-/// Set once, as the app starts, and read from views; unchecked for the
-/// same reason `TranscriptActions` is.
+/// Main-actor state, like `TranscriptActions`.
+@MainActor
 public enum TranscriptImages {
     /// Draw the picture behind a reference, no larger than `maxEdge` on
     /// its longest side (0 for as large as it likes). The app returns it
     /// already at its own proportions: a box the size of the largest
     /// allowed picture would leave a tall screenshot floating in the
     /// middle of it, and the rounded corner clipping empty space.
-    nonisolated(unsafe) public static var render: ((String, CGFloat) -> AnyView)?
+    public static var render: ((String, CGFloat) -> AnyView)?
     #if canImport(AppKit) || canImport(UIKit)
     /// The bytes behind a reference, for a viewer that wants to hand the
     /// picture to a share sheet (and so to Save Image). Apple only: the
     /// portable SwiftUI has no Foundation to put them in and nowhere to
     /// share them to.
-    nonisolated(unsafe) public static var data: ((String) async -> Data?)?
+    public static var data: ((String) async -> Data?)?
     #endif
 }
 

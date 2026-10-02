@@ -50,13 +50,13 @@ to one focused change, and say in it how the change was verified.
   before pushing. No `@unchecked Sendable`, and no shared singletons for
   view state: state a row needs from its thread goes through the
   environment (`openedTranscriptImage`).
-- Do not mark a view, or anything a view calls, `@MainActor`. Apple's
-  `View` is main-actor isolated and a portable SwiftUI's may not be: there
-  a marked view cannot be built by an unmarked one, and the marking
-  spreads through every app. For the same reason what a host lends
-  (`TranscriptActions`, `TranscriptImages`) is `nonisolated(unsafe)` for
-  now — the only such state — and a delayed step hops with
-  `Task { @MainActor in … }` rather than calling a `@MainActor` function.
+- Views are main-actor isolated by their conformance to `View`, on Apple's
+  SwiftUI and on Isomer's (since Isomer 0.14), so a view needs no explicit
+  `@MainActor`, and should not carry one. What a host lends
+  (`TranscriptActions`, `TranscriptImages`) is `@MainActor` state. No
+  `nonisolated(unsafe)` anywhere.
+- One public or internal type per file, named after it; only nested types
+  (`Foo.Bar`) and `private`/`fileprivate` helpers share a file.
 - A delayed step in a view (`settle`, the arrival of rows, a send) keeps
   its task and cancels the one before it, so two in a row do not cut
   each other short. The delays themselves are measured against recordings
