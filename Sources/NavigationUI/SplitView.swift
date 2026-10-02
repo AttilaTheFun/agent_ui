@@ -112,46 +112,6 @@ public struct EmptyDetail: View {
 }
 
 
-/// The three-column layout: a sidebar, a content column, a detail — Mail's
-/// shape (accounts, the inbox, the message) and Visor's (the computers, a
-/// computer's projects and sessions, the agent). A phone shows one column
-/// at a time and walks sidebar → content → detail.
-public struct ThreeColumnSplitView<Sidebar: View, Content: View, Detail: View>: View {
-    @Binding var columns: NavigationSplitViewVisibility
-    @Binding var compactColumn: NavigationSplitViewColumn
-    let sidebar: Sidebar
-    let content: Content
-    let detail: Detail
-
-    public init(columns: Binding<NavigationSplitViewVisibility>,
-                compactColumn: Binding<NavigationSplitViewColumn>,
-                @ViewBuilder sidebar: () -> Sidebar,
-                @ViewBuilder content: () -> Content,
-                @ViewBuilder detail: () -> Detail) {
-        self._columns = columns
-        self._compactColumn = compactColumn
-        self.sidebar = sidebar()
-        self.content = content()
-        self.detail = detail()
-    }
-
-    public var body: some View {
-        // The content column gets its bar like the sidebar (every SwiftUI
-        // wraps the list columns); only the detail needs DetailColumn.
-        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
-            sidebar
-        } content: {
-            content
-        } detail: {
-            DetailColumn { detail }
-        }
-        // The automatic style starts the list columns at their ideal width
-        // and gives the detail the rest; balanced spreads the window across
-        // all three and prominentDetail widens the lists to their maximum.
-        .navigationSplitViewStyle(.automatic)
-    }
-}
-
 /// Messages' list chrome, the iOS 26 shape: on a phone a bar floating over
 /// the list with a search field and a compose button; at regular width the
 /// search field sits under the navigation bar (the host's `.searchable`)
