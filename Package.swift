@@ -32,7 +32,7 @@ let package = Package(
         // views — from the fork that builds it for Android and checks in
         // what its build plugin generates (Bazel cannot run SwiftPM
         // plugins). The fork's `visor-consumer` branch.
-        .package(url: "https://github.com/AttilaTheFun/SwiftTerm.git", revision: "7aca2a981e1c603149fa98a965e571741a3423d1"),
+        .package(url: "https://github.com/AttilaTheFun/SwiftTerm.git", revision: "0d75983ebd8c8e62e696958f7a74a148734c70ce"),
     ],
     targets: [
         // What the inbox and the thread share: the model values, the theme,

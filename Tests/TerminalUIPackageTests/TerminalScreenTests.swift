@@ -62,8 +62,21 @@ final class TerminalScreenTests: XCTestCase {
         screen.resize(cols: 50, rows: 10)
         screen.resize(cols: 50, rows: 10)
         XCTAssertEqual(told, ["50x10"], "told once, for a real change")
+        XCTAssertTrue(screen.sized)
         XCTAssertEqual(screen.frame.rows.count, 10)
         XCTAssertEqual(screen.frame.cols, 50)
+    }
+
+    /// The first size a view gives is passed on even when it is the size
+    /// the screen was made with: the app needs it to take the terminal.
+    func testTheFirstSizeIsAlwaysPassedOn() {
+        let screen = TerminalScreen(cols: 80, rows: 24)
+        var told: [String] = []
+        screen.onResize = { told.append("\($0)x\($1)") }
+        XCTAssertFalse(screen.sized)
+        screen.resize(cols: 80, rows: 24)
+        screen.resize(cols: 80, rows: 24)
+        XCTAssertEqual(told, ["80x24"])
     }
 
     func testStartingOverClearsTheScreen() async {

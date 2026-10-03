@@ -15,6 +15,9 @@ public final class TerminalScreen: ObservableObject {
     @Published public private(set) var frame: TerminalFrame
     public private(set) var cols: Int
     public private(set) var rows: Int
+    /// Whether a view has given it its size yet; until then `cols` and
+    /// `rows` are only what it was made with.
+    public private(set) var sized = false
     /// Bytes for the program: what was typed, encoded as the terminal's
     /// modes say, and the terminal's answers to the program's queries.
     public var onInput: (([UInt8]) -> Void)?
@@ -53,10 +56,12 @@ public final class TerminalScreen: ObservableObject {
     }
 
     /// The view's size in cells. The emulator reflows to it, and the app is
-    /// told, so the program draws for it too.
+    /// told — the first time, whether or not it changed — so the program
+    /// draws for it too.
     public func resize(cols: Int, rows: Int) {
         let cols = max(2, cols), rows = max(1, rows)
-        guard cols != self.cols || rows != self.rows else { return }
+        guard cols != self.cols || rows != self.rows || !sized else { return }
+        sized = true
         self.cols = cols
         self.rows = rows
         terminal.terminalLock.withLock { terminal.resize(cols: cols, rows: rows) }

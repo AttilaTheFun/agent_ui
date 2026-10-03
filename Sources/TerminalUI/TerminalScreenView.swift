@@ -14,8 +14,11 @@ public struct TerminalScreenView: View {
     let paste: (() -> String?)?
     /// One cell, measured from the font.
     @State private var cell: CGSize = .zero
-    /// The field's text: always the sentinel, between keystrokes.
+    /// The field's text, and what of it has been sent: the field keeps
+    /// what is typed (so fast typing is never raced by a reset) and only
+    /// the difference goes to the terminal.
     @State private var typed = TerminalScreenView.sentinel
+    @State private var sent = TerminalScreenView.sentinel
     @FocusState private var focused: Bool
     /// Control, held from the key bar for the next key.
     @State private var control = false
@@ -34,8 +37,8 @@ public struct TerminalScreenView: View {
         self.paste = paste
     }
 
-    /// What the field holds between keystrokes, so a deletion shows as the
-    /// sentinel going.
+    /// What the field starts with, so a deletion at the start of a line
+    /// still changes it.
     static let sentinel = " "
 
     private var font: Font { .system(size: fontSize, design: .monospaced) }
@@ -144,25 +147,34 @@ public struct TerminalScreenView: View {
         TextField("", text: $typed, axis: .vertical)
             .focused($focused)
             .autocorrectionDisabled()
+            .terminalFieldTraits()
             .terminalKeys(handle)
             .frame(width: 1, height: 1)
             .opacity(0.01)
             .offset(x: CGFloat(screen.frame.cursor.col) * cell.width, y: CGFloat(screen.frame.cursor.row) * cell.height)
             .onChange(of: typed) { _, now in take(now) }
+            .onChange(of: focused) { _, now in if now { restart() } }
             .accessibilityLabel("Terminal input")
     }
 
-    /// What the field's text became: the keystrokes that made it, sent,
-    /// and the field back to the sentinel.
+    /// What the field's text became since it was last read: what was
+    /// deleted, as backspaces, and what was added, typed. The field is
+    /// emptied back to the sentinel only when the sentinel itself was
+    /// deleted, or the field has grown long at the end of a line.
     private func take(_ now: String) {
-        guard now != Self.sentinel else { return }
-        if now.hasPrefix(Self.sentinel) {
-            send(String(now.dropFirst(Self.sentinel.count)))
+        guard now != sent else { return }
+        let common = zip(sent, now).prefix { $0 == $1 }.count
+        for _ in 0..<(sent.count - common) { screen.press("Backspace") }
+        send(String(now.dropFirst(common)))
+        if now.isEmpty || (now.count > 400 && now.hasSuffix("\n")) {
+            restart()
         } else {
-            // The sentinel was deleted: a backspace.
-            screen.press("Backspace")
-            send(now)
+            sent = now
         }
+    }
+
+    private func restart() {
+        sent = Self.sentinel
         typed = Self.sentinel
     }
 
@@ -212,9 +224,13 @@ public struct TerminalScreenView: View {
     // MARK: Keys a phone's keyboard does not have
 
     private var keys: some View {
+        ScrollView(.horizontal, showsIndicators: false) { keyRow }
+    }
+
+    private var keyRow: some View {
         HStack(spacing: 6) {
             key("esc") { screen.press("Escape") }
-            Button { control.toggle() } label: { Text("ctrl").frame(minWidth: 28) }
+            Button { control.toggle() } label: { Text("ctrl").lineLimit(1).fixedSize() }
                 .buttonStyle(.bordered)
                 .tint(control ? .accentColor : nil)
                 .accessibilityLabel("Control")
@@ -225,18 +241,16 @@ public struct TerminalScreenView: View {
             key("↑") { screen.press("ArrowUp") }
             key("→") { screen.press("ArrowRight") }
             if let paste {
-                Spacer(minLength: 0)
                 key("paste") { if let text = paste() { screen.paste(text) } }
             }
         }
         .font(.system(size: 13, design: .monospaced))
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func key(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Text(title).frame(minWidth: 22) }
+        Button(action: action) { Text(title).lineLimit(1).fixedSize() }
             .buttonStyle(.bordered)
     }
 }
