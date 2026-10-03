@@ -32,7 +32,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/AttilaTheFun/SwiftTerm.git",
       "state" : {
-        "revision" : "0d75983ebd8c8e62e696958f7a74a148734c70ce"
+        "revision" : "a652fe780aec9b4a8855841486583a7c8dcffd72"
       }
     }
   ],
