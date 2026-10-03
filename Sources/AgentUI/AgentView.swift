@@ -70,6 +70,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// Set as a message is sent, for the moment the composer and the
     /// thread both change: the thread holds still through it.
     @State private var sendingNow = false
+    /// The composer's height, for the thread to keep its bottom above it.
+    @State private var composerHeight: CGFloat = 0
     @State private var sendingEnds: Task<Void, Never>?
 
     /// Sending, with the thread told first — in the same update as the
@@ -91,11 +93,14 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     public var body: some View {
         TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                        emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
-                       sending: sendingNow)
+                       sending: sendingNow, composerHeight: composerHeight)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
                               sending: sending, suggestions: suggestions, pick: pick, controls: controls, attachments: attachments)
+                    .background(GeometryReader { proxy in
+                        Color.clear.onChange(of: proxy.size.height, initial: true) { _, height in composerHeight = height }
+                    })
             }
             .scrollDismissesKeyboard(.interactively)
     }

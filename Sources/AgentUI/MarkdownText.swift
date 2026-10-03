@@ -39,7 +39,12 @@ public struct MarkdownText: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .top, spacing: 6) {
                         Text(item.marker).foregroundColor(.secondary)
+                        // As tall as its lines: beside the marker, in a
+                        // list cell, the item was otherwise given one
+                        // line and stopped at "…".
                         inline(item.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }

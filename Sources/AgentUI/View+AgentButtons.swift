@@ -12,7 +12,13 @@ extension View {
             .foregroundColor(.white)
             .frame(width: AgentComposerMetrics.controlHeight, height: AgentComposerMetrics.controlHeight)
             .background(Circle().fill(tint))
-            .contentShape(Circle())
+            // Takes a tap past the circle (`hitSlop`) without taking any
+            // more room: padded to shape the hit area, then the padding
+            // given back.
+            .padding(AgentComposerMetrics.hitSlop)
+            .contentShape(Rectangle())
+            .padding(EdgeInsets(top: -AgentComposerMetrics.hitSlop.top, leading: -AgentComposerMetrics.hitSlop.leading,
+                                bottom: -AgentComposerMetrics.hitSlop.bottom, trailing: -AgentComposerMetrics.hitSlop.trailing))
     }
 
     /// A composer pill (the model, the effort, a mode): a solid tinted

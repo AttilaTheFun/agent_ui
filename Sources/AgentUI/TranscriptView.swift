@@ -30,11 +30,15 @@ public struct TranscriptView: View {
     /// top still through both, then eases to its bottom — rather than
     /// dropping with the composer and coming back up.
     let sending: Bool
+    /// How tall the composer below the thread is: when it grows or shrinks
+    /// (lines typed, a draft sent), the thread keeps its bottom in view.
+    let composerHeight: CGFloat
 
     public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
-                loadEarlier: (() -> Void)? = nil, sending: Bool = false) {
+                loadEarlier: (() -> Void)? = nil, sending: Bool = false, composerHeight: CGFloat = 0) {
         self.sending = sending
+        self.composerHeight = composerHeight
         self.messages = messages
         self._shown = State(initialValue: messages)
         self.busy = busy
@@ -206,6 +210,19 @@ public struct TranscriptView: View {
             // bottom: a second scroll in the middle of it (the composer
             // shrinking as the words sent leave it) fought it.
             .onVisibleHeightChange { if !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
+            // On a Mac the composer bar's growth reaches the list as an
+            // inset its scroll geometry does not report, so the change
+            // above never fired and the last rows went under the box: the
+            // composer's own height is watched instead, and the thread
+            // scrolled once the new inset has landed — at once, as the box
+            // pushes it, not eased.
+            .onComposerHeightChange(composerHeight) {
+                guard !holdTop && !sending else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 30_000_000)
+                    toBottom()
+                }
+            }
             .environment(\.openedTranscriptImage, $openedImage)
             .environment(\.openedToolCalls, $openedCalls)
             .sheet(isPresented: Binding(get: { openedImage != nil },

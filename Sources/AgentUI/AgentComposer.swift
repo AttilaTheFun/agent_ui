@@ -152,13 +152,13 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     if let sendingWords {
                         Text(sendingWords)
                             .foregroundColor(.secondary)
-                            .lineLimit(1...10)
+                            .draftLineLimit()
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .allowsHitTesting(false)
                     }
                     DraftField(placeholder: sendingWords == nil ? placeholder : "", draft: $draft, selection: $selection)
                         .textFieldStyle(.plain)
-                        .lineLimit(1...10)
+                        .draftLineLimit()
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .focused($focused)
                         .id(fieldGeneration)
@@ -169,6 +169,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                         // elsewhere the submit above is what sends.
                         .returnSendsShiftReturnBreaks(draft: $draft, selection: $selection) { if canSend { fire(send) } }
                 }
+                .draftScroller(draft: draft, selection: selection)
                 .padding(.horizontal, AgentComposerMetrics.inner)
                 .padding(.top, AgentComposerMetrics.inner)
                 .padding(.bottom, AgentComposerMetrics.textInset)
