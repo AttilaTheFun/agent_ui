@@ -28,6 +28,12 @@ reimplementation of the same API, so one source builds everywhere.
   column bindings), `InspectorView` (a pane's frame with the X),
   `adaptiveInspector(isPresented:compact:)` (an inspector, or a sheet on a
   phone), `EmptyDetail`.
+- **TerminalUI** — a terminal in SwiftUI: `TerminalScreen` keeps the screen
+  with SwiftTerm's portable emulator (feed it the program's output; send
+  what `onInput` gives; `onResize` says the size), and `TerminalScreenView`
+  draws it — monospaced runs, the cursor, typing through its own field,
+  keys where the platform reports them, a key bar for a phone, drag to
+  scroll back. The same view on every SwiftUI, Apple's and Isomer's.
 
 InboxUI and MessagesUI re-export **MessagesCore**: the model values
 (`ConversationSummary`, `MessageItem`, `MessageContent`), `MessagesTheme`

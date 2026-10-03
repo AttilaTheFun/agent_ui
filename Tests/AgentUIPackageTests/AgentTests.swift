@@ -55,3 +55,27 @@ final class InlineMarkdownTests: XCTestCase {
         XCTAssertTrue(spans[1].bold); XCTAssertTrue(spans[3].code); XCTAssertTrue(spans[5].link); XCTAssertTrue(spans[7].italic)
     }
 }
+
+final class DraftEditTests: XCTestCase {
+    func testANewlineGoesInAtTheCaret() {
+        let text = "first second"
+        let caret = text.index(text.startIndex, offsetBy: 5)
+        let edit = DraftEdit.newline(in: text, replacing: caret..<caret)
+        XCTAssertEqual(edit.text, "first\n second")
+        XCTAssertEqual(edit.caret, 6)
+    }
+
+    func testANewlineReplacesWhatIsSelected() {
+        let text = "first second"
+        let range = text.index(text.startIndex, offsetBy: 5)..<text.index(text.startIndex, offsetBy: 6)
+        let edit = DraftEdit.newline(in: text, replacing: range)
+        XCTAssertEqual(edit.text, "first\nsecond")
+        XCTAssertEqual(edit.caret, 6)
+    }
+
+    func testWithNoCaretKnownItGoesAtTheEnd() {
+        let edit = DraftEdit.newline(in: "words", replacing: nil)
+        XCTAssertEqual(edit.text, "words\n")
+        XCTAssertEqual(edit.caret, 6)
+    }
+}

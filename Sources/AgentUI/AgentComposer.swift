@@ -33,6 +33,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
+    /// Where the caret is in the field, for a Shift-Return's newline.
+    @State private var selection: DraftSelection?
     /// The words just sent, shown in the box, faint, while they are on
     /// their way.
     @State private var sentWords: String?
@@ -154,7 +156,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .allowsHitTesting(false)
                     }
-                    TextField(sendingWords == nil ? placeholder : "", text: $draft, axis: .vertical)
+                    DraftField(placeholder: sendingWords == nil ? placeholder : "", draft: $draft, selection: $selection)
                         .textFieldStyle(.plain)
                         .lineLimit(1...10)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,7 +167,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                         // can be read (a Mac, a hardware keyboard on a phone),
                         // both are decided here and the field sees neither;
                         // elsewhere the submit above is what sends.
-                        .returnSendsShiftReturnBreaks(draft: $draft) { if canSend { fire(send) } }
+                        .returnSendsShiftReturnBreaks(draft: $draft, selection: $selection) { if canSend { fire(send) } }
                 }
                 .padding(.horizontal, AgentComposerMetrics.inner)
                 .padding(.top, AgentComposerMetrics.inner)

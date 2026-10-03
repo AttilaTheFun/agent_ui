@@ -13,16 +13,18 @@ to one focused change, and say in it how the change was verified.
 
 ## Layout
 
-- `Package.swift` at the root: the four products (InboxUI, MessagesUI,
-  AgentUI, NavigationUI), the shared `MessagesCore` target, the tests, and
-  `ExampleData` (the examples' fake store). Nothing else.
+- `Package.swift` at the root: the five products (InboxUI, MessagesUI,
+  AgentUI, NavigationUI, TerminalUI), the shared `MessagesCore` target, the
+  tests, and `ExampleData` (the examples' fake store). Nothing else.
 - `Sources/MessagesCore/`: the model values, MessagesTheme, the native
   styles, Avatar, MessagesPlatform — what the inbox and the thread share;
   re-exported by InboxUI and MessagesUI.
 - `Sources/InboxUI/`: InboxView. `Sources/MessagesUI/`: ThreadView,
   MessageView, MessageComposer, ConversationTitle, MacConversationTitlebar.
   `Sources/AgentUI/`: AgentView, TranscriptView and its rows, AgentComposer.
-  `Sources/NavigationUI/`: SplitView, InspectorView. A file per type, named
+  `Sources/NavigationUI/`: SplitView, InspectorView. `Sources/TerminalUI/`:
+  TerminalScreen (SwiftTerm's emulator, main-actor state the app lends)
+  and TerminalScreenView (it drawn in SwiftUI). A file per type, named
   after it; `View+Topic.swift` for what a target adds to `View`.
 - `Tests/AgentUIPackageTests/`: XCTest, `swift test`.
 - `Examples/`: the four example apps as an Xcode project generated from
@@ -31,7 +33,12 @@ to one focused change, and say in it how the change was verified.
 
 ## Rules
 
-- Every target imports SwiftUI and nothing else. No app code, no Bazel, no third-party dependencies. It is built here against Apple's
+- Every target imports SwiftUI and nothing else. No app code, no Bazel, no third-party dependencies — with one exception: TerminalUI also
+  imports SwiftTerm, for its portable emulator only (never its UIKit/AppKit
+  views), from the fork github.com/AttilaTheFun/SwiftTerm, pinned by
+  revision on its `visor-consumer` branch (upstream main, Android support,
+  and the build plugin's output checked in, since Bazel cannot run SwiftPM
+  plugins). No other target may depend on it. It is built here against Apple's
   SwiftUI and elsewhere (wasm, Android, Linux, Windows) against a
   reimplementation of the same API, so:
   - Use only SwiftUI API that exists on iOS 18 / macOS 15, behind

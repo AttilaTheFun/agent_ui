@@ -2,10 +2,11 @@
 
 // AgentUI: chat interfaces as SwiftUI packages — Messages.app's inbox and
 // thread, an agent's transcript and composer in the Claude app's shape, and
-// the container views (split view, inspector) that hold them — with the data
-// and the navigation left to the app. Every target imports SwiftUI and
-// nothing else, so it builds against Apple's SwiftUI here and against a
-// reimplementation of the same API elsewhere.
+// the container views (split view, inspector) that hold them, and a terminal
+// — with the data and the navigation left to the app. Every target imports
+// SwiftUI and nothing else (TerminalUI also SwiftTerm's portable emulator),
+// so it builds against Apple's SwiftUI here and against a reimplementation
+// of the same API elsewhere.
 import PackageDescription
 
 let package = Package(
@@ -20,8 +21,18 @@ let package = Package(
         .library(name: "AgentUI", targets: ["AgentUI"]),
         // The containers: `SplitView`, `InspectorView`, `EmptyDetail`.
         .library(name: "NavigationUI", targets: ["NavigationUI"]),
+        // A terminal: `TerminalScreen` (SwiftTerm's emulator) drawn by
+        // `TerminalScreenView` in SwiftUI.
+        .library(name: "TerminalUI", targets: ["TerminalUI"]),
         // The examples' fake data source, so the Xcode example apps can link it.
         .library(name: "ExampleData", targets: ["ExampleData"]),
+    ],
+    dependencies: [
+        // SwiftTerm's portable core — the emulator, not its UIKit/AppKit
+        // views — from the fork that builds it for Android and checks in
+        // what its build plugin generates (Bazel cannot run SwiftPM
+        // plugins). The fork's `visor-consumer` branch.
+        .package(url: "https://github.com/AttilaTheFun/SwiftTerm.git", revision: "a652fe780aec9b4a8855841486583a7c8dcffd72"),
     ],
     targets: [
         // What the inbox and the thread share: the model values, the theme,
@@ -32,7 +43,9 @@ let package = Package(
         .target(name: "MessagesUI", dependencies: ["MessagesCore"]),
         .target(name: "AgentUI"),
         .target(name: "NavigationUI"),
+        .target(name: "TerminalUI", dependencies: [.product(name: "SwiftTerm", package: "SwiftTerm")]),
         .testTarget(name: "AgentUIPackageTests", dependencies: ["AgentUI"]),
+        .testTarget(name: "TerminalUIPackageTests", dependencies: ["TerminalUI"]),
         .testTarget(name: "MessagesUIPackageTests", dependencies: ["InboxUI", "MessagesUI", "NavigationUI"]),
         // The examples' shared data. The example apps themselves are Xcode
         // targets (Examples/AgentUIExamples.xcodeproj): an app bundle is
