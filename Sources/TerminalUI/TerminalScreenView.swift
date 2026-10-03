@@ -4,7 +4,7 @@ import SwiftUI
 /// monospaced runs on their backgrounds, and the cursor. It sizes the
 /// screen to fit (`TerminalScreen.onResize` tells the app), takes typing
 /// through a field of its own (so a phone's keyboard comes up when the
-/// terminal is tapped), keys like the arrows and Escape where the platform
+/// terminal is tapped), keys like the arrows and Escape as the platform
 /// reports key presses, and a row of those keys on a phone. Dragging
 /// scrolls back through what has gone off the top.
 public struct TerminalScreenView: View {
@@ -199,9 +199,8 @@ public struct TerminalScreenView: View {
         screen.type(plain)
     }
 
-    /// A key press, where the platform reports them: the keys that are not
-    /// text, and text with a modifier, go to the terminal here; plain text
-    /// is left to the field.
+    /// A key press: the keys that are not text, and text with a modifier,
+    /// go to the terminal here; plain text is left to the field.
     private func handle(_ key: TerminalKey) -> Bool {
         var modifiers = key.modifiers
         if modifiers.contains(.command) {

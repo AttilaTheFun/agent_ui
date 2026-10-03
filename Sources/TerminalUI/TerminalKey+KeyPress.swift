@@ -1,6 +1,5 @@
 import SwiftUI
 
-#if canImport(UIKit) || canImport(AppKit)
 extension TerminalKey {
     /// A key press as SwiftUI reports it.
     init(_ press: KeyPress) {
@@ -33,4 +32,3 @@ extension TerminalKey {
         }
     }
 }
-#endif
