@@ -1,13 +1,13 @@
 import SwiftUI
 
 extension View {
-    /// The composer as bar chrome at the bottom edge: `safeAreaBar` on 26
-    /// (the glass edge treatment), `safeAreaInset` before.
-    @ViewBuilder public func agentComposerBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
-        if #available(macOS 26, iOS 26, *) {
-            safeAreaBar(edge: .bottom, content: bar)
-        } else {
-            safeAreaInset(edge: .bottom, content: bar)
-        }
+    /// The composer at the bottom edge, as an inset: the thread scrolls
+    /// under it and rests above it. Not `safeAreaBar`: on iOS 26 and 27 a
+    /// scroll view with a safe-area bar, on any edge, takes the long press
+    /// that selects text, so no message could be copied from (checked in a
+    /// scratch app: the same list selects with an inset and not with a
+    /// bar, whatever the bar holds and whatever its edge effect).
+    public func agentComposerBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
+        safeAreaInset(edge: .bottom, content: bar)
     }
 }
