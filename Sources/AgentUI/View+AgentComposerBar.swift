@@ -8,6 +8,6 @@ extension View {
     /// scratch app: the same list selects with an inset and not with a
     /// bar, whatever the bar holds and whatever its edge effect).
     public func agentComposerBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
-        safeAreaInset(edge: .bottom, content: bar)
+        safeAreaInset(edge: .bottom, spacing: 0, content: bar)
     }
 }
