@@ -26,14 +26,10 @@ struct SendCapsule: View {
     private var tint: Color { enabled ? theme.accent : theme.secondaryText.opacity(0.5) }
 
     @ViewBuilder private var glassOrFill: some View {
-        #if canImport(AppKit) || canImport(UIKit)
         if #available(macOS 26, iOS 26, *) {
             Color.clear.glassEffect(.regular.tint(tint).interactive(), in: .capsule)
         } else {
             tint
         }
-        #else
-        tint
-        #endif
     }
 }

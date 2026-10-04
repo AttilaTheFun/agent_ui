@@ -28,7 +28,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     let steer: (() -> Void)?
     let controls: () -> Controls
     let attachments: () -> Attachments
-    let suggestions: [AgentSuggestion]
+    let suggestions: (String) -> [AgentSuggestion]
     let pick: (AgentSuggestion) -> Void
 
     /// - Parameters:
@@ -42,7 +42,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
                 busy: Bool, sending: Bool = false, attachmentCount: Int = 0, send: @escaping () -> Void,
                 stop: @escaping () -> Void, steer: (() -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
-                suggestions: [AgentSuggestion] = [], pick: @escaping (AgentSuggestion) -> Void = { _ in },
+                suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -70,6 +70,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// Set as a message is sent, for the moment the composer and the
     /// thread both change: the thread holds still through it.
     @State private var sendingNow = false
+    /// The composer's height, for the thread to keep its bottom above it.
+    @State private var composerHeight: CGFloat = 0
     @State private var sendingEnds: Task<Void, Never>?
 
     /// Sending, with the thread told first — in the same update as the
@@ -91,11 +93,14 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     public var body: some View {
         TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                        emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
-                       sending: sendingNow)
+                       sending: sendingNow, composerHeight: composerHeight)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
                               sending: sending, suggestions: suggestions, pick: pick, controls: controls, attachments: attachments)
+                    .background(GeometryReader { proxy in
+                        Color.clear.onChange(of: proxy.size.height, initial: true) { _, height in composerHeight = height }
+                    })
             }
             .scrollDismissesKeyboard(.interactively)
     }

@@ -19,6 +19,11 @@ public enum AgentComposerMetrics {
     /// The message's own padding, on top of the box's: together they make
     /// `textInset`.
     static var inner: CGFloat { textInset - gap }
+    /// The room around the row of controls: up to the message, and down
+    /// and across to the box's edge. Each control carries it, so the send
+    /// button takes taps in it — a thumb just off the circle still sends —
+    /// without the box looking any different.
+    static var controlsRoom: EdgeInsets { EdgeInsets(top: textInset, leading: 0, bottom: gap, trailing: gap) }
     /// The send button's fill.
     public static let sendTint = Color.indigo
     /// Stopping wears the same colour: it is the same button, saying what

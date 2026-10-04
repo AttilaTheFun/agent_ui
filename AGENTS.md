@@ -35,10 +35,10 @@ to one focused change, and say in it how the change was verified.
 
 - Every target imports SwiftUI and nothing else. No app code, no Bazel, no third-party dependencies — with one exception: TerminalUI also
   imports SwiftTerm, for its portable emulator only (never its UIKit/AppKit
-  views), from the fork github.com/AttilaTheFun/SwiftTerm, pinned by
-  revision on its `visor-consumer` branch (upstream main, Android support,
-  and the build plugin's output checked in, since Bazel cannot run SwiftPM
-  plugins). No other target may depend on it. It is built here against Apple's
+  views), from upstream github.com/migueldeicaza/SwiftTerm, pinned by
+  revision (it builds for Android since #733; a Bazel host, which runs no
+  SwiftPM plugins, patches in what its build plugin generates, as Visor
+  does). No other target may depend on it. It is built here against Apple's
   SwiftUI and elsewhere (wasm, Android, Linux, Windows) against a
   reimplementation of the same API, so:
   - Use only SwiftUI API that exists on iOS 18 / macOS 15, behind

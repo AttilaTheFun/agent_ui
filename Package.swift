@@ -29,10 +29,10 @@ let package = Package(
     ],
     dependencies: [
         // SwiftTerm's portable core — the emulator, not its UIKit/AppKit
-        // views — from the fork that builds it for Android and checks in
-        // what its build plugin generates (Bazel cannot run SwiftPM
-        // plugins). The fork's `visor-consumer` branch.
-        .package(url: "https://github.com/AttilaTheFun/SwiftTerm.git", revision: "a652fe780aec9b4a8855841486583a7c8dcffd72"),
+        // views — upstream, at the merge that builds it for Android
+        // (migueldeicaza/SwiftTerm#733). A Bazel build, which runs no
+        // SwiftPM plugins, patches in what its build plugin generates.
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", revision: "839d4fa1ffd4ea2ede5664e1c1fb13cc5771e11a"),
     ],
     targets: [
         // What the inbox and the thread share: the model values, the theme,

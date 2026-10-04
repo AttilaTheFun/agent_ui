@@ -50,10 +50,12 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
     private var hasInspector: Bool { !(inspector is EmptyView) }
 
     private var split: some View {
+        // Messages' edges under the bars: the list of conversations a hard
+        // band, the conversation a soft fade.
         NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
-            sidebar
+            sidebar.hardTopEdge()
         } detail: {
-            DetailColumn { detail }
+            DetailColumn { detail }.softTopEdge()
         }
         .navigationSplitViewStyle(.balanced)
     }

@@ -12,7 +12,20 @@ extension View {
             .foregroundColor(.white)
             .frame(width: AgentComposerMetrics.controlHeight, height: AgentComposerMetrics.controlHeight)
             .background(Circle().fill(tint))
-            .contentShape(Circle())
+    }
+
+    /// A round button's label, taking taps in the room around the circle
+    /// it is drawn in (`controlsRoom`, plus `gap` before it): a button is
+    /// hit only within its own frame, so the label is the circle and that
+    /// room, transparent.
+    func agentCircleTarget(tint: Color = AgentComposerMetrics.sendTint) -> some View {
+        let room = AgentComposerMetrics.controlsRoom
+        return font(.body.weight(.semibold))
+            .foregroundColor(.white)
+            .frame(width: AgentComposerMetrics.controlHeight, height: AgentComposerMetrics.controlHeight)
+            .background(Circle().fill(tint))
+            .padding(EdgeInsets(top: room.top, leading: AgentComposerMetrics.gap, bottom: room.bottom, trailing: room.trailing))
+            .contentShape(Rectangle())
     }
 
     /// A composer pill (the model, the effort, a mode): a solid tinted
