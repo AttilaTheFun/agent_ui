@@ -7,10 +7,6 @@ public enum AgentComposerMetrics {
     /// one line of controls rather than a jumble of sizes. A control that
     /// is a circle is this across as well.
     public static let controlHeight: CGFloat = 36
-    /// How far past its circle the send (or stop) button still takes a
-    /// tap: into the box's padding and the space around it, so a thumb
-    /// that lands just off the circle still sends.
-    static let hitSlop = EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 12)
     /// The one gap in the composer: from the box's edges, between the
     /// controls, and between them and the message. The space between the
     /// last control and the send button is the exception — it is whatever
@@ -23,6 +19,11 @@ public enum AgentComposerMetrics {
     /// The message's own padding, on top of the box's: together they make
     /// `textInset`.
     static var inner: CGFloat { textInset - gap }
+    /// The room around the row of controls: up to the message, and down
+    /// and across to the box's edge. Each control carries it, so the send
+    /// button takes taps in it — a thumb just off the circle still sends —
+    /// without the box looking any different.
+    static var controlsRoom: EdgeInsets { EdgeInsets(top: textInset, leading: 0, bottom: gap, trailing: gap) }
     /// The send button's fill.
     public static let sendTint = Color.indigo
     /// Stopping wears the same colour: it is the same button, saying what

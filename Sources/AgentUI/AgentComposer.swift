@@ -132,11 +132,15 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     private var box: some View {
         AgentGlassBox {
             // Spacing by hand: the message keeps `textInset` from the box
-            // and from the controls, while the controls keep `gap`.
+            // and from the controls, while the controls keep `gap`. The
+            // row of controls carries its own room to the box's edge and
+            // to the message (`controlsRoom`), so the send button can take
+            // taps in it.
             VStack(alignment: .leading, spacing: 0) {
                 if !suggestions.isEmpty {
                     SuggestionList(suggestions: suggestions, pick: pick)
                         .padding(.bottom, AgentComposerMetrics.gap)
+                        .padding(.trailing, AgentComposerMetrics.gap)
                 }
                 if attachmentCount > 0 {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -144,6 +148,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                             .padding(.horizontal, AgentComposerMetrics.inner)
                     }
                     .padding(.bottom, AgentComposerMetrics.gap)
+                    .padding(.trailing, AgentComposerMetrics.gap)
                 }
                 // The words on their way, where they were written, until
                 // something new is: laid out with the field, so the box
@@ -172,9 +177,11 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                 .draftScroller(draft: draft, selection: selection)
                 .padding(.horizontal, AgentComposerMetrics.inner)
                 .padding(.top, AgentComposerMetrics.inner)
-                .padding(.bottom, AgentComposerMetrics.textInset)
+                .padding(.trailing, AgentComposerMetrics.gap)
                 HStack(spacing: AgentComposerMetrics.gap) {
                     controls
+                        .padding(.top, AgentComposerMetrics.controlsRoom.top)
+                        .padding(.bottom, AgentComposerMetrics.controlsRoom.bottom)
                     // The one flexible gap: everything else is `gap`.
                     Spacer(minLength: AgentComposerMetrics.gap)
                     #if canImport(AppKit) || canImport(UIKit)
@@ -193,6 +200,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                         // on the record.
                         Button {} label: { ProgressView().controlSize(.small).tint(.white) }
                             .agentCircleButton()
+                            .padding(AgentComposerMetrics.controlsRoom)
                             .allowsHitTesting(false)
                             .accessibilityLabel("Sending")
                             .accessibilityIdentifier("sending")
@@ -207,22 +215,24 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                             Image(systemName: "stop.fill")
                         }
                         .agentCircleButton(tint: AgentComposerMetrics.stopTint)
+                        .padding(AgentComposerMetrics.controlsRoom)
                         .accessibilityLabel("Stop, send now, or queue")
                         .accessibilityIdentifier("busy-actions")
                     } else if busy {
                         // Nothing written: the button only stops.
-                        Button(action: stop) { Image(systemName: "stop.fill") }
-                            .agentCircleButton(tint: AgentComposerMetrics.stopTint)
+                        Button(action: stop) { Image(systemName: "stop.fill").agentCircleTarget(tint: AgentComposerMetrics.stopTint) }
+                            .buttonStyle(.plain)
                             .accessibilityLabel("Stop")
                     } else {
-                        Button { fire(send) } label: { Image(systemName: "arrow.up") }
-                            .agentCircleButton()
+                        Button { fire(send) } label: { Image(systemName: "arrow.up").agentCircleTarget() }
+                            .buttonStyle(.plain)
                             .disabled(!canSend)
                             .accessibilityLabel("Send")
                     }
                 }
             }
-            .padding(AgentComposerMetrics.gap)
+            .padding(.top, AgentComposerMetrics.gap)
+            .padding(.leading, AgentComposerMetrics.gap)
             // On the record: the words leave the box as the message
             // arrives in the thread, the same update.
             .onChange(of: sending) { _, now in if !now { sentWords = nil } }
