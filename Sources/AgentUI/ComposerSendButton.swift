@@ -9,9 +9,10 @@ struct ComposerSendButton: View {
     let busy: Bool
     let sending: Bool
     let attachmentCount: Int
-    /// The composer's sends: what clears and renews the field is done there.
-    let send: () -> Void
-    let steer: (() -> Void)?
+    /// The composer's sends, given the words as this view has them: what
+    /// clears and renews the field is done there.
+    let send: (String) -> Void
+    let steer: ((String) -> Void)?
     let stop: () -> Void
 
     private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
@@ -29,8 +30,8 @@ struct ComposerSendButton: View {
             // Something written while the agent works: say it now, keep it
             // for after, or just stop.
             Menu {
-                Button(action: steer) { Label("Send now", systemImage: "forward.end") }
-                Button(action: send) { Label("Queue for after", systemImage: "clock") }
+                Button { steer(draft) } label: { Label("Send now", systemImage: "forward.end") }
+                Button { send(draft) } label: { Label("Queue for after", systemImage: "clock") }
                 Button(role: .destructive, action: stop) { Label("Stop", systemImage: "stop.fill") }
             } label: {
                 Image(systemName: "stop.fill")
@@ -45,7 +46,7 @@ struct ComposerSendButton: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Stop")
         } else {
-            Button(action: send) { Image(systemName: "arrow.up").agentCircleTarget() }
+            Button { send(draft) } label: { Image(systemName: "arrow.up").agentCircleTarget() }
                 .buttonStyle(.plain)
                 .disabled(!canSend)
                 .accessibilityLabel("Send")

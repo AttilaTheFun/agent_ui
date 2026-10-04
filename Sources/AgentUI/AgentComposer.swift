@@ -36,6 +36,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// The words just sent, shown in the box, faint, while they are on
     /// their way.
     @State private var sentWords: String?
+    /// The words last handed to the app, until the field sees whether the
+    /// app cleared the draft for them (sent them) or kept it.
+    @State private var handedOver: String?
 
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
@@ -65,25 +68,30 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         self.attachments = attachments()
     }
 
-    /// Read by the closures only, as they are called: the composer's body
-    /// does not read the draft, so typing redraws the field and the send
-    /// button alone (ComposerField, ComposerSendButton).
-    private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
-
-    /// Sends; the keyboard stays up and the field keeps focus, to write
-    /// the next message. Apple's multi-line field can go on drawing the
-    /// words just sent while it is focused, and a phone's keyboard can
-    /// hand them back (a pending autocorrection) just after the app has
-    /// cleared the draft. So once the send has settled the draft is set
-    /// to a space and then to nothing: two real changes, each pushed into
-    /// the field it has, which keeps its focus and the keyboard. (A new
-    /// field would read the draft too, but takes the keyboard down.) On a
-    /// Mac, where there is no keyboard to lose, the field is renewed.
-    private func fire(_ action: @escaping () -> Void) {
-        let words = draft
+    /// Hands `words` to the app. The composer's body does not read the
+    /// draft (typing redraws the field and the send button alone), so
+    /// what it would read here is the draft of its last redraw: the words
+    /// come from the view that sent them, and whether the app took them
+    /// is seen by the field, which reads the draft (`settle`).
+    private func fire(_ action: () -> Void, words: String) {
+        handedOver = words
         action()
-        // The app kept the draft (nothing was sent): leave it.
-        guard draft.isEmpty else { return }
+    }
+
+    /// The draft changed after a hand-over. Cleared, the words were sent:
+    /// the keyboard stays up and the field keeps focus, to write the next
+    /// message. Apple's multi-line field can go on drawing the words just
+    /// sent while it is focused, and a phone's keyboard can hand them back
+    /// (a pending autocorrection) just after the app has cleared the
+    /// draft. So the draft is then set to a space and then to nothing: two
+    /// real changes, each pushed into the field it has, which keeps its
+    /// focus and the keyboard. (A new field would read the draft too, but
+    /// takes the keyboard down.) On a Mac, where there is no keyboard to
+    /// lose, the field is renewed. Kept, nothing was sent: leave it.
+    private func settle(cleared: Bool) {
+        guard let words = handedOver else { return }
+        handedOver = nil
+        guard cleared else { return }
         // Shown in the box until the message is on the record, and gone
         // from it as the message arrives in the thread.
         if !AgentText.isBlank(words) { sentWords = AgentText.trimmed(words) }
@@ -142,7 +150,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     .padding(.trailing, AgentComposerMetrics.gap)
                 }
                 ComposerField(draft: $draft, placeholder: placeholder, sentWords: sentWords, sending: sending, focused: $focused,
-                              generation: fieldGeneration, submit: { if canSend { fire(send) } })
+                              generation: fieldGeneration, attachmentCount: attachmentCount, handedOver: handedOver != nil,
+                              submit: { fire(send, words: $0) }, settle: settle)
                 .padding(.horizontal, AgentComposerMetrics.inner)
                 .padding(.top, AgentComposerMetrics.inner)
                 .padding(.trailing, AgentComposerMetrics.gap)
@@ -164,7 +173,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     }
                     #endif
                     ComposerSendButton(draft: $draft, busy: busy, sending: sending, attachmentCount: attachmentCount,
-                                       send: { fire(send) }, steer: steer.map { steer in { fire(steer) } }, stop: stop)
+                                       send: { fire(send, words: $0) }, steer: steer.map { steer in { fire(steer, words: $0) } },
+                                       stop: stop)
                 }
             }
             .padding(.top, AgentComposerMetrics.gap)
