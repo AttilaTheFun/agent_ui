@@ -76,6 +76,11 @@ public struct TranscriptView: View {
     @State private var shown: [TranscriptMessage]
     /// The row that asks for earlier rows is in view.
     @State private var earlierInView = false
+    /// The row kept at the top while a page of earlier rows goes in above
+    /// it: a list at its top would otherwise stay there and show the page's
+    /// first row. Let go once the page has settled.
+    @State private var keptAtTop: String?
+    @State private var keptEnds: Task<Void, Never>?
 
     /// What ends the settling, and what lets go of the top after rows are
     /// put in: one of each at a time, so a second settling or a second
@@ -100,6 +105,17 @@ public struct TranscriptView: View {
         }
     }
 
+    /// Keeps `row` at the top while the page going in above it is laid out.
+    private func keep(_ row: String) {
+        keptAtTop = row
+        keptEnds?.cancel()
+        keptEnds = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            keptAtTop = nil
+        }
+    }
+
     /// Asks for the rows before the first shown while the row that stands
     /// for them is in view — not while the thread is settling on its last
     /// row, when the list may lay its top out on the way down. Asked again
@@ -108,6 +124,20 @@ public struct TranscriptView: View {
     private func askEarlier() {
         guard earlierInView, !settling, let loadEarlier else { return }
         loadEarlier()
+    }
+
+    /// Whether `new` is `old` with rows put in before its first.
+    static func prepends(_ new: [TranscriptMessage], to old: [TranscriptMessage]) -> Bool {
+        guard let first = old.first, let last = old.last, new.last?.id == last.id, new.first?.id != first.id else { return false }
+        return new.contains { $0.id == first.id }
+    }
+
+    /// The first of `old`'s rows that is still a row of its own in `new`:
+    /// a run of tool calls at the top of `old` may have joined one at the
+    /// end of the rows put in before it.
+    static func firstKept(of old: [TranscriptMessage], in new: [TranscriptMessage]) -> String? {
+        let rows = Set(TranscriptBlock.blocks(new).map(\.id))
+        return TranscriptBlock.blocks(Array(old.prefix(8))).map(\.id).first { rows.contains($0) }
     }
 
     /// Whether `new` is `old` with rows added after its last.
@@ -167,7 +197,17 @@ public struct TranscriptView: View {
                 toBottom()
                 if !shown.isEmpty { settle(toBottom) }
             }
-            .onContentHeightChange { if settling { toBottom() } }
+            .onContentHeightChange {
+                if settling {
+                    toBottom()
+                } else if let keptAtTop {
+                    // As the list lays out the page: before the frame that
+                    // would show the page's top.
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { proxy.scrollTo(keptAtTop, anchor: .top) }
+                }
+            }
             .onChange(of: settling) { _, _ in askEarlier() }
             .onChange(of: shown.first?.id) { _, _ in askEarlier() }
             // The rows drawn are this view's copy of the app's, changed as
@@ -205,6 +245,12 @@ public struct TranscriptView: View {
                 } else {
                     let first = shown.isEmpty
                     let moved = new.last?.id != shown.last?.id
+                    // A page of earlier rows put in above while the top is
+                    // in view: the row that was first stays where it was,
+                    // rather than the list showing the page's own first.
+                    if earlierInView, Self.prepends(new, to: shown), let kept = Self.firstKept(of: shown, in: new) {
+                        keep(kept)
+                    }
                     shown = new
                     // Once the layout pass that takes the rows has been
                     // applied.
