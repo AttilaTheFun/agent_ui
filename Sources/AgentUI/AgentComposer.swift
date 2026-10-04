@@ -103,15 +103,11 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
 
     public var body: some View {
         Group {
-            #if canImport(AppKit) || canImport(UIKit)
             if #available(iOS 26, macOS 26, *) {
                 GlassEffectContainer(spacing: 10) { box }
             } else {
                 box
             }
-            #else
-            box
-            #endif
         }
         // One inset, whatever the keyboard is doing: the bar is attached
         // with `safeAreaInset(edge: .bottom)`, and SwiftUI moves the safe

@@ -129,6 +129,8 @@ public struct TranscriptView: View {
                 .plainListRow()
             }
             .listStyle(.plain)
+            // A plain list's own edge is a hard band under the bar.
+            .softTopEdge()
             .noMinimumRowHeight()
             // The bottom stays put as the list or its rows change size.
             .bottomAnchoredOnResize(!(holdTop || sending))

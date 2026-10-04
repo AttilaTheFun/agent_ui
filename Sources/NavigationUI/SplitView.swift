@@ -56,6 +56,9 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
             DetailColumn { detail }
         }
         .navigationSplitViewStyle(.balanced)
+        // Every list in the columns fades under the bar, as iOS's own
+        // apps do, rather than a list's hard band.
+        .softTopEdge()
     }
 }
 
