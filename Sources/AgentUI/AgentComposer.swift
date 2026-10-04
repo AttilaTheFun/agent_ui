@@ -25,16 +25,14 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     let sending: Bool
     let controls: Controls
     let attachments: Attachments
-    /// Ways to finish the draft, shown above the field while there are any.
-    let suggestions: [AgentSuggestion]
+    /// Ways to finish a draft, shown above the field while there are any.
+    let suggest: (String) -> [AgentSuggestion]
     let pick: (AgentSuggestion) -> Void
     @FocusState private var focused: Bool
     /// Bumped after a send. Apple's multi-line field goes on showing what
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
-    /// Where the caret is in the field, for a Shift-Return's newline.
-    @State private var selection: DraftSelection?
     /// The words just sent, shown in the box, faint, while they are on
     /// their way.
     @State private var sentWords: String?
@@ -45,14 +43,15 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     ///   - sending: a message sent is not on the record yet.
     ///   - controls: the buttons and pills beside the send button.
     ///   - attachments: the thumbnails above the field.
-    ///   - suggestions: ways to finish the draft (slash commands), listed
-    ///     above the field; `pick` is told which was tapped.
+    ///   - suggestions: ways to finish a draft (slash commands), listed
+    ///     above the field; `pick` is told which was tapped. Asked as the
+    ///     draft changes, by the view that shows them.
     public init(draft: Binding<String>, placeholder: String = "Message the agent…", busy: Bool,
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
                 steer: (() -> Void)? = nil, sending: Bool = false,
-                suggestions: [AgentSuggestion] = [], pick: @escaping (AgentSuggestion) -> Void = { _ in },
+                suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
-        self.suggestions = suggestions
+        self.suggest = suggestions
         self.pick = pick
         self._draft = draft
         self.placeholder = placeholder
@@ -66,9 +65,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         self.attachments = attachments()
     }
 
-    /// The words on their way, while there is nothing new written.
-    private var sendingWords: String? { sending && draft.isEmpty ? sentWords : nil }
-
+    /// Read by the closures only, as they are called: the composer's body
+    /// does not read the draft, so typing redraws the field and the send
+    /// button alone (ComposerField, ComposerSendButton).
     private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
 
     /// Sends; the keyboard stays up and the field keeps focus, to write
@@ -133,11 +132,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // to the message (`controlsRoom`), so the send button can take
             // taps in it.
             VStack(alignment: .leading, spacing: 0) {
-                if !suggestions.isEmpty {
-                    SuggestionList(suggestions: suggestions, pick: pick)
-                        .padding(.bottom, AgentComposerMetrics.gap)
-                        .padding(.trailing, AgentComposerMetrics.gap)
-                }
+                ComposerSuggestions(draft: $draft, suggest: suggest, pick: pick)
                 if attachmentCount > 0 {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AgentComposerMetrics.gap) { attachments }
@@ -146,31 +141,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     .padding(.bottom, AgentComposerMetrics.gap)
                     .padding(.trailing, AgentComposerMetrics.gap)
                 }
-                // The words on their way, where they were written, until
-                // something new is: laid out with the field, so the box
-                // keeps their height until they leave it.
-                ZStack(alignment: .topLeading) {
-                    if let sendingWords {
-                        Text(sendingWords)
-                            .foregroundColor(.secondary)
-                            .draftLineLimit()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .allowsHitTesting(false)
-                    }
-                    DraftField(placeholder: sendingWords == nil ? placeholder : "", draft: $draft, selection: $selection)
-                        .textFieldStyle(.plain)
-                        .draftLineLimit()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .focused($focused)
-                        .id(fieldGeneration)
-                        .onSubmit { if canSend { fire(send) } }
-                        // Return sends; Shift-Return is a newline. Where keys
-                        // can be read (a Mac, a hardware keyboard on a phone),
-                        // both are decided here and the field sees neither;
-                        // elsewhere the submit above is what sends.
-                        .returnSendsShiftReturnBreaks(draft: $draft, selection: $selection) { if canSend { fire(send) } }
-                }
-                .draftScroller(draft: draft, selection: selection)
+                ComposerField(draft: $draft, placeholder: placeholder, sentWords: sentWords, sending: sending, focused: $focused,
+                              generation: fieldGeneration, submit: { if canSend { fire(send) } })
                 .padding(.horizontal, AgentComposerMetrics.inner)
                 .padding(.top, AgentComposerMetrics.inner)
                 .padding(.trailing, AgentComposerMetrics.gap)
@@ -191,40 +163,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                             .accessibilityHidden(true)
                     }
                     #endif
-                    if sending {
-                        // The send button, spinning until the message is
-                        // on the record.
-                        Button {} label: { ProgressView().controlSize(.small).tint(.white) }
-                            .agentCircleButton()
-                            .padding(AgentComposerMetrics.controlsRoom)
-                            .allowsHitTesting(false)
-                            .accessibilityLabel("Sending")
-                            .accessibilityIdentifier("sending")
-                    } else if busy, canSend, let steer {
-                        // Something written while the agent works: say it
-                        // now, keep it for after, or just stop.
-                        Menu {
-                            Button { fire(steer) } label: { Label("Send now", systemImage: "forward.end") }
-                            Button { fire(send) } label: { Label("Queue for after", systemImage: "clock") }
-                            Button(role: .destructive) { stop() } label: { Label("Stop", systemImage: "stop.fill") }
-                        } label: {
-                            Image(systemName: "stop.fill")
-                        }
-                        .agentCircleButton(tint: AgentComposerMetrics.stopTint)
-                        .padding(AgentComposerMetrics.controlsRoom)
-                        .accessibilityLabel("Stop, send now, or queue")
-                        .accessibilityIdentifier("busy-actions")
-                    } else if busy {
-                        // Nothing written: the button only stops.
-                        Button(action: stop) { Image(systemName: "stop.fill").agentCircleTarget(tint: AgentComposerMetrics.stopTint) }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Stop")
-                    } else {
-                        Button { fire(send) } label: { Image(systemName: "arrow.up").agentCircleTarget() }
-                            .buttonStyle(.plain)
-                            .disabled(!canSend)
-                            .accessibilityLabel("Send")
-                    }
+                    ComposerSendButton(draft: $draft, busy: busy, sending: sending, attachmentCount: attachmentCount,
+                                       send: { fire(send) }, steer: steer.map { steer in { fire(steer) } }, stop: stop)
                 }
             }
             .padding(.top, AgentComposerMetrics.gap)

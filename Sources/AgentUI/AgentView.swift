@@ -28,7 +28,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     let steer: (() -> Void)?
     let controls: () -> Controls
     let attachments: () -> Attachments
-    let suggestions: [AgentSuggestion]
+    let suggestions: (String) -> [AgentSuggestion]
     let pick: (AgentSuggestion) -> Void
 
     /// - Parameters:
@@ -42,7 +42,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
                 busy: Bool, sending: Bool = false, attachmentCount: Int = 0, send: @escaping () -> Void,
                 stop: @escaping () -> Void, steer: (() -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
-                suggestions: [AgentSuggestion] = [], pick: @escaping (AgentSuggestion) -> Void = { _ in },
+                suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
