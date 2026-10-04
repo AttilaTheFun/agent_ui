@@ -23,7 +23,10 @@ public struct TranscriptView: View {
     let emptyTitle: String
     let emptyBody: String
     let emptyFootnote: String?
-    /// Given when the thread goes back further than what is shown.
+    /// Given when the thread goes back further than what is shown: called
+    /// when the row standing for the earlier rows comes into view (and
+    /// again while it stays in view after a page goes in), so the app
+    /// ignores a call while a page is on its way.
     let loadEarlier: (() -> Void)?
     /// A message is being sent this moment: the composer gives up its
     /// lines as the message goes into the thread, and the list keeps its
@@ -71,6 +74,8 @@ public struct TranscriptView: View {
 
     /// The rows drawn: the app's, as of its last change.
     @State private var shown: [TranscriptMessage]
+    /// The row that asks for earlier rows is in view.
+    @State private var earlierInView = false
 
     /// What ends the settling, and what lets go of the top after rows are
     /// put in: one of each at a time, so a second settling or a second
@@ -95,6 +100,16 @@ public struct TranscriptView: View {
         }
     }
 
+    /// Asks for the rows before the first shown while the row that stands
+    /// for them is in view — not while the thread is settling on its last
+    /// row, when the list may lay its top out on the way down. Asked again
+    /// when the settling ends, and when a page has gone in and the row is
+    /// still in view (a short page).
+    private func askEarlier() {
+        guard earlierInView, !settling, let loadEarlier else { return }
+        loadEarlier()
+    }
+
     /// Whether `new` is `old` with rows added after its last.
     static func appends(_ new: [TranscriptMessage], to old: [TranscriptMessage]) -> Bool {
         guard let last = old.last, new.last?.id != last.id else { return false }
@@ -106,13 +121,17 @@ public struct TranscriptView: View {
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
             List {
                 Group {
-                    if let loadEarlier, !shown.isEmpty {
-                        Button(action: loadEarlier) {
-                            Text("Load earlier messages").font(.footnote).foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity)
-                        .transcriptCell()
+                    if loadEarlier != nil, !shown.isEmpty {
+                        // The rows before these: coming into view asks for
+                        // them, and the row spins until they are in.
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .transcriptCell()
+                            .onAppear {
+                                earlierInView = true
+                                askEarlier()
+                            }
+                            .onDisappear { earlierInView = false }
                     }
                     if shown.isEmpty { emptyState }
                     ForEach(TranscriptBlock.blocks(shown)) { block in
@@ -149,6 +168,8 @@ public struct TranscriptView: View {
                 if !shown.isEmpty { settle(toBottom) }
             }
             .onContentHeightChange { if settling { toBottom() } }
+            .onChange(of: settling) { _, _ in askEarlier() }
+            .onChange(of: shown.first?.id) { _, _ in askEarlier() }
             // The rows drawn are this view's copy of the app's, changed as
             // the app's change. Rows arriving at the end are put in below
             // what is seen — the list holding its top still for that one
