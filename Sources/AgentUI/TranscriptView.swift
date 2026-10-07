@@ -44,6 +44,7 @@ public struct TranscriptView: View {
         self.composerHeight = composerHeight
         self.messages = messages
         self._shown = State(initialValue: messages)
+        self._revealed = State(initialValue: !messages.isEmpty)
         self.busy = busy
         self.status = status
         self.activity = activity
@@ -74,6 +75,13 @@ public struct TranscriptView: View {
 
     /// The rows drawn: the app's, as of its last change.
     @State private var shown: [TranscriptMessage]
+    /// The rows are drawn. Rows that come after the thread has opened (its
+    /// first sync, with nothing cached) are laid out from the top and
+    /// scrolled to their end a frame later, and the thread's top showed
+    /// for that frame: they stay invisible until the list stands at its
+    /// end. Rows the thread opens with are drawn at once, as before.
+    @State private var revealed: Bool
+    @State private var revealEnds: Task<Void, Never>?
     /// The row that asks for earlier rows is in view.
     @State private var earlierInView = false
     /// The row kept at the top while a page of earlier rows goes in above
@@ -98,10 +106,26 @@ public struct TranscriptView: View {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
             toBottom()
+            // Drawn by now whatever the layout did.
+            reveal(after: 0)
             try? await Task.sleep(nanoseconds: 900_000_000)
             guard !Task.isCancelled else { return }
             toBottom()
             settling = false
+        }
+    }
+
+    /// Draws the rows once the scroll to their end has landed: a frame or
+    /// two after the list laid them out (`after` nanoseconds).
+    private func reveal(after delay: UInt64 = 34_000_000) {
+        guard !revealed, revealEnds == nil else { return }
+        revealEnds = Task { @MainActor in
+            if delay > 0 { try? await Task.sleep(nanoseconds: delay) }
+            guard !Task.isCancelled else { return }
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { revealed = true }
+            revealEnds = nil
         }
     }
 
@@ -178,6 +202,9 @@ public struct TranscriptView: View {
                 .plainListRow()
             }
             .listStyle(.plain)
+            // Invisible while rows laid out from the top are on their way
+            // to their end; the empty state is always drawn.
+            .opacity(shown.isEmpty || revealed ? 1 : 0)
             // A plain list's own edge is a hard band under the bar.
             .softTopEdge()
             .noMinimumRowHeight()
@@ -200,6 +227,9 @@ public struct TranscriptView: View {
             .onContentHeightChange {
                 if settling {
                     toBottom()
+                    // The first rows are laid out: drawn once the scroll
+                    // to their end has landed.
+                    if !shown.isEmpty { reveal() }
                 } else if let keptAtTop {
                     // As the list lays out the page: before the frame that
                     // would show the page's top.
