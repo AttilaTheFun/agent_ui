@@ -3,6 +3,9 @@
 // and in Visor. Each app maps its chat model to `TranscriptMessage`.
 
 import SwiftUI
+#if canImport(QuickLook)
+import QuickLook
+#endif
 
 /// The transcript: the record's messages, and under them one status row
 /// that is always there. The rows change only when the record does; what
@@ -59,8 +62,15 @@ public struct TranscriptView: View {
     /// Kept here and lent to the rows through the environment: a row is
     /// rebuilt on every delta that arrives, and state inside one goes
     /// with it.
+    /// The attachment a row asked to see whole: a picture, a video, a
+    /// file. Set while its bytes are fetched (the tile shows that), then
+    /// shown by the system's preview where there is one, else the viewer.
     @State private var openedImage: String?
     @State private var openedCalls: [TranscriptMessage]?
+    #if canImport(QuickLook)
+    /// The attachment as a file, for the system's preview (Quick Look).
+    @State private var previewFile: URL?
+    #endif
 
     static let bottom = "status"
 
@@ -324,10 +334,27 @@ public struct TranscriptView: View {
             }
             .environment(\.openedTranscriptImage, $openedImage)
             .environment(\.openedToolCalls, $openedCalls)
+            #if canImport(QuickLook)
+            // The system's preview: pictures zoom, videos play, documents
+            // open, with its own share. The attachment's bytes are fetched
+            // first (a picture's are at hand; a video's take a moment, the
+            // tile spinning meanwhile), then handed over as a file.
+            .quickLookPreview($previewFile)
+            .onChange(of: openedImage) { _, reference in
+                guard let reference else { return }
+                Task { @MainActor in
+                    let file = await TranscriptFiles.local(for: reference)
+                    guard openedImage == reference else { return }
+                    openedImage = nil
+                    previewFile = file
+                }
+            }
+            #else
             .sheet(isPresented: Binding(get: { openedImage != nil },
                                         set: { if !$0 { openedImage = nil } })) {
                 if let url = openedImage { ImageViewer(url: url) }
             }
+            #endif
             .sheet(isPresented: Binding(get: { openedCalls != nil },
                                         set: { if !$0 { openedCalls = nil } })) {
                 if let run = openedCalls { ToolCallsSheet(run: run) }

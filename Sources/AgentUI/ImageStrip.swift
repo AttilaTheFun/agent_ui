@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Thumbnails of a message's images (screenshots, attached mocks), on
-/// the side its message is on: yours right, the agent's left. Tap one to
-/// see it whole.
+/// Thumbnails of a message's attachments (screenshots, attached mocks, a
+/// video, a file), on the side its message is on: yours right, the
+/// agent's left. Tap one to see it whole; it spins while its bytes are
+/// fetched for that.
 public struct ImageStrip: View {
     let urls: [String]
     let sizes: [CGSize?]
@@ -36,10 +37,18 @@ public struct ImageStrip: View {
                     } label: {
                         TranscriptImage(url: url, maxEdge: TranscriptMetrics.thumbnail)
                             .frame(width: reserved(index)?.width, height: reserved(index)?.height)
+                            .overlay {
+                                if opened.wrappedValue == url {
+                                    ZStack {
+                                        Color.black.opacity(0.3)
+                                        ProgressView().tint(.white)
+                                    }
+                                }
+                            }
                             .clipShape(RoundedRectangle(cornerRadius: TranscriptMetrics.imageCorner))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open the picture")
+                    .accessibilityLabel("Open the attachment")
                 }
                 if alignment == .leading { Spacer(minLength: 0) }
             }
