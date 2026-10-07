@@ -57,7 +57,20 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
         } detail: {
             DetailColumn { detail }.softTopEdge()
         }
-        .navigationSplitViewStyle(.balanced)
+        .splitStyle()
+    }
+}
+
+private extension View {
+    /// Balanced columns, where a TV is not: its balanced style shows one
+    /// column at a time, and its own (the sidebar over the detail, drawn
+    /// in while focused) is the two-column one.
+    @ViewBuilder func splitStyle() -> some View {
+        #if os(tvOS)
+        self
+        #else
+        navigationSplitViewStyle(.balanced)
+        #endif
     }
 }
 

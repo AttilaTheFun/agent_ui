@@ -8,7 +8,11 @@ struct DraftField: View {
     @Binding var selection: DraftSelection?
 
     var body: some View {
-        #if (canImport(AppKit) || canImport(UIKit)) && !os(tvOS)
+        #if os(tvOS)
+        // A TV's field is a button for the system keyboard, one line tall:
+        // given a vertical axis it grows to whatever height it is offered.
+        TextField(placeholder, text: $draft)
+        #elseif canImport(AppKit) || canImport(UIKit)
         TextField(placeholder, text: $draft, selection: $selection, axis: .vertical)
         #else
         TextField(placeholder, text: $draft, axis: .vertical)
