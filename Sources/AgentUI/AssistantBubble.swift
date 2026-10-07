@@ -15,7 +15,8 @@ public struct AssistantBubble: View {
             MarkdownText(text)
                 .selectableText()
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if !text.isEmpty { MessageActions(text: text) }
+            // (Not on a TV: no pasteboard to copy to, no sheet to share with.)
+            if !text.isEmpty, !AgentComposerMetrics.tv { MessageActions(text: text) }
         }
         .padding(.horizontal, TranscriptMetrics.edgeInset)
     }

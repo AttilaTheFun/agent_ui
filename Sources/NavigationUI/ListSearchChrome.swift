@@ -7,6 +7,9 @@ import SwiftUI
 public struct ListSearchChrome<Content: View>: View {
     @Binding var text: String
     let prompt: String
+    /// The list's title, where the chrome draws it itself (a TV): the
+    /// host's `navigationTitle` elsewhere.
+    let title: String
     let composeLabel: String
     let compose: (() -> Void)?
     @ViewBuilder let content: () -> Content
@@ -14,11 +17,12 @@ public struct ListSearchChrome<Content: View>: View {
     @FocusState private var searching: Bool
     #endif
 
-    public init(text: Binding<String>, prompt: String = "Search",
+    public init(text: Binding<String>, prompt: String = "Search", title: String = "",
                 composeLabel: String = "New", compose: (() -> Void)? = nil,
                 @ViewBuilder content: @escaping () -> Content) {
         self._text = text
         self.prompt = prompt
+        self.title = title
         self.composeLabel = composeLabel
         self.compose = compose
         self.content = content
@@ -55,17 +59,25 @@ public struct ListSearchChrome<Content: View>: View {
                 }
         }
         #elseif os(tvOS)
-        // A TV: compose alone. A search field would need the system
+        // A TV: the title and compose in a row of their own above the
+        // list (a TV draws no bar for a sidebar, and its toolbar item lands
+        // on the first row). No search: a field would need the system
         // keyboard for every letter, over a list the remote scans as fast.
-        content()
-            .toolbar {
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(.title2.weight(.bold))
+                Spacer()
                 if let compose {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(action: compose) { Image(systemName: "square.and.pencil") }
-                            .accessibilityLabel(composeLabel)
-                    }
+                    Button(action: compose) { Image(systemName: "square.and.pencil") }
+                        .accessibilityLabel(composeLabel)
                 }
             }
+            .padding(.horizontal, 28)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            content()
+        }
+        .toolbar(.hidden, for: .navigationBar)
         #else
         // The Mac's shape: the field under the navigation bar, not in it;
         // compose stays a toolbar item.

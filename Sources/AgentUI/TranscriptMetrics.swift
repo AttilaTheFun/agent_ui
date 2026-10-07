@@ -4,13 +4,15 @@ import SwiftUI
 /// from the edges; the composer sits with them while the keyboard is away
 /// and pulls in when it is up, to leave room to write.
 public enum TranscriptMetrics {
-    public static let edgeInset: CGFloat = 16
+    public static let edgeInset: CGFloat = AgentComposerMetrics.tv ? 32 : 16
     /// The last cell of the transcript: with the last row's own 6pt below
     /// it and the composer's 8pt above the box, 32pt between the two.
     public static let bottomGap: CGFloat = 18
     /// A thread is uncomfortable to read across a large display: the
     /// messages and the composer stop here and centre in a wider column.
-    public static let maxContentWidth: CGFloat = 720
+    /// (A TV's type is near twice a phone's, read from across a room: the
+    /// column is wider in the same measure.)
+    public static let maxContentWidth: CGFloat = AgentComposerMetrics.tv ? 1180 : 720
     /// A picture's corner, in the transcript and in the viewer.
     public static let imageCorner: CGFloat = 8
     /// The longest side a picture takes in the transcript.
