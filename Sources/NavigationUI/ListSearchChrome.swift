@@ -54,6 +54,18 @@ public struct ListSearchChrome<Content: View>: View {
                     }
                 }
         }
+        #elseif os(tvOS)
+        // A TV: compose alone. A search field would need the system
+        // keyboard for every letter, over a list the remote scans as fast.
+        content()
+            .toolbar {
+                if let compose {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: compose) { Image(systemName: "square.and.pencil") }
+                            .accessibilityLabel(composeLabel)
+                    }
+                }
+            }
         #else
         // The Mac's shape: the field under the navigation bar, not in it;
         // compose stays a toolbar item.
@@ -70,6 +82,7 @@ public struct ListSearchChrome<Content: View>: View {
         #endif
     }
 
+    #if !os(tvOS)
     /// The Mac's field: a rounded search box.
     private var searchField: some View {
         HStack(spacing: 6) {
@@ -96,5 +109,5 @@ public struct ListSearchChrome<Content: View>: View {
         .frame(height: 36)
         .background(Capsule().fill(Color.secondary.opacity(0.18)))
     }
-
+    #endif
 }
