@@ -25,7 +25,7 @@ public struct ListSearchChrome<Content: View>: View {
     }
 
     public var body: some View {
-        #if !os(macOS)
+        #if !os(macOS) && !os(tvOS)
         // The system's own search and compose, which iOS 26 (and the
         // portable SwiftUI) draws as glass items in the bottom bar.
         if #available(iOS 26.0, *) {
