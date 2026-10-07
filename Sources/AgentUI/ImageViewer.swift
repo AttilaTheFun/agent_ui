@@ -96,12 +96,8 @@ public struct ImageViewer: View {
     /// as a file. Named after the reference, so opening the same picture
     /// twice does not leave two.
     private func fetch() async {
-        guard file == nil, let load = TranscriptImages.data else { return }
-        guard let data = await load(url) else { return }
-        let name = String(url.split(separator: "/").last ?? "image.png")
-        let destination = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(name)
-        guard (try? data.write(to: destination, options: .atomic)) != nil else { return }
-        file = destination
+        guard file == nil else { return }
+        file = await TranscriptFiles.local(for: url)
     }
     #endif
 
