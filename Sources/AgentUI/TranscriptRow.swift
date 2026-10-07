@@ -19,7 +19,7 @@ public struct TranscriptRow: View {
                             .padding(.horizontal, 14).padding(.vertical, 10)
                             .background(Color.secondary.opacity(0.18))
                             .cornerRadius(16)
-                            .textSelection(.enabled)
+                            .selectableText()
                     }
                 }
             }

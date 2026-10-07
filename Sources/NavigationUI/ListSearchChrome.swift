@@ -7,6 +7,9 @@ import SwiftUI
 public struct ListSearchChrome<Content: View>: View {
     @Binding var text: String
     let prompt: String
+    /// The list's title, where the chrome draws it itself (a TV): the
+    /// host's `navigationTitle` elsewhere.
+    let title: String
     let composeLabel: String
     let compose: (() -> Void)?
     @ViewBuilder let content: () -> Content
@@ -14,18 +17,19 @@ public struct ListSearchChrome<Content: View>: View {
     @FocusState private var searching: Bool
     #endif
 
-    public init(text: Binding<String>, prompt: String = "Search",
+    public init(text: Binding<String>, prompt: String = "Search", title: String = "",
                 composeLabel: String = "New", compose: (() -> Void)? = nil,
                 @ViewBuilder content: @escaping () -> Content) {
         self._text = text
         self.prompt = prompt
+        self.title = title
         self.composeLabel = composeLabel
         self.compose = compose
         self.content = content
     }
 
     public var body: some View {
-        #if !os(macOS)
+        #if !os(macOS) && !os(tvOS)
         // The system's own search and compose, which iOS 26 (and the
         // portable SwiftUI) draws as glass items in the bottom bar.
         if #available(iOS 26.0, *) {
@@ -54,6 +58,26 @@ public struct ListSearchChrome<Content: View>: View {
                     }
                 }
         }
+        #elseif os(tvOS)
+        // A TV: the title and compose in a row of their own above the
+        // list (a TV draws no bar for a sidebar, and its toolbar item lands
+        // on the first row). No search: a field would need the system
+        // keyboard for every letter, over a list the remote scans as fast.
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(.title3.weight(.bold)).lineLimit(1).minimumScaleFactor(0.7)
+                Spacer()
+                if let compose {
+                    Button(action: compose) { Image(systemName: "square.and.pencil") }
+                        .accessibilityLabel(composeLabel)
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            content()
+        }
+        .toolbar(.hidden, for: .navigationBar)
         #else
         // The Mac's shape: the field under the navigation bar, not in it;
         // compose stays a toolbar item.
@@ -70,6 +94,7 @@ public struct ListSearchChrome<Content: View>: View {
         #endif
     }
 
+    #if !os(tvOS)
     /// The Mac's field: a rounded search box.
     private var searchField: some View {
         HStack(spacing: 6) {
@@ -96,5 +121,5 @@ public struct ListSearchChrome<Content: View>: View {
         .frame(height: 36)
         .background(Capsule().fill(Color.secondary.opacity(0.18)))
     }
-
+    #endif
 }

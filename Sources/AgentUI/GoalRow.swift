@@ -23,7 +23,7 @@ struct GoalRow: View {
                     .font(.footnote)
                     .foregroundColor(.secondary)
                     .lineLimit(expanded ? nil : 3)
-                    .textSelection(.enabled)
+                    .selectableText()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

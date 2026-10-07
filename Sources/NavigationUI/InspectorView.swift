@@ -32,6 +32,18 @@ public struct InspectorView<Content: View>: View {
                     #endif
                 }
         }
-        .inspectorColumnWidth(300)
+        .inspectorWidth(300)
+    }
+}
+
+private extension View {
+    /// The inspector's width, where there is an inspector column (a TV
+    /// shows the pane as a sheet).
+    @ViewBuilder func inspectorWidth(_ width: CGFloat) -> some View {
+        #if os(tvOS)
+        self
+        #else
+        inspectorColumnWidth(width)
+        #endif
     }
 }

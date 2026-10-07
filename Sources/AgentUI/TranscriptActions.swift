@@ -19,6 +19,8 @@ public enum TranscriptActions {
         #if canImport(AppKit)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        #elseif os(tvOS)
+        // A TV has no pasteboard: nothing to copy to.
         #else
         // UIKit's pasteboard, which the portable SwiftUI has too (the
         // browser's clipboard, Android's).

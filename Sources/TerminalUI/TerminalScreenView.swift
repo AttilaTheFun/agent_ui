@@ -125,8 +125,12 @@ public struct TerminalScreenView: View {
         screen.resize(cols: Int(size.width / cell.width), rows: Int(size.height / cell.height))
     }
 
-    /// Dragging down shows what went off the top; up comes back.
+    /// Dragging down shows what went off the top; up comes back. (A TV
+    /// has no drag: the screen shows what it shows.)
     private var scrolling: some Gesture {
+        #if os(tvOS)
+        TapGesture()
+        #else
         DragGesture(minimumDistance: 6)
             .onChanged { value in
                 guard cell.height > 0 else { return }
@@ -137,6 +141,7 @@ public struct TerminalScreenView: View {
                 dragged += CGFloat(rows) * cell.height
             }
             .onEnded { _ in dragged = 0 }
+        #endif
     }
 
     // MARK: Typing

@@ -6,16 +6,26 @@ public enum AgentComposerMetrics {
     /// right, and anything an app puts between them — so the row reads as
     /// one line of controls rather than a jumble of sizes. A control that
     /// is a circle is this across as well.
-    public static let controlHeight: CGFloat = 36
+    /// (A TV's controls are read from across a room, and its focus ring
+    /// wants something to hold: half again as large.)
+    public static let controlHeight: CGFloat = tv ? 56 : 36
     /// The one gap in the composer: from the box's edges, between the
     /// controls, and between them and the message. The space between the
     /// last control and the send button is the exception — it is whatever
     /// is left.
-    public static let gap: CGFloat = 8
+    public static let gap: CGFloat = tv ? 12 : 8
     /// What the message itself sits in from: the box's top and sides, and
     /// the row of controls below it. Wider than `gap`, because a line of
     /// text wants more air around it than a capsule does.
-    public static let textInset: CGFloat = 12
+    public static let textInset: CGFloat = tv ? 18 : 12
+    /// Laid out for a television.
+    static var tv: Bool {
+        #if os(tvOS)
+        true
+        #else
+        false
+        #endif
+    }
     /// The message's own padding, on top of the box's: together they make
     /// `textInset`.
     static var inner: CGFloat { textInset - gap }

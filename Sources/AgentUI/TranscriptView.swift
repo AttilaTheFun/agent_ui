@@ -3,6 +3,9 @@
 // and in Visor. Each app maps its chat model to `TranscriptMessage`.
 
 import SwiftUI
+#if canImport(QuickLook)
+import QuickLook
+#endif
 
 /// The transcript: the record's messages, and under them one status row
 /// that is always there. The rows change only when the record does; what
@@ -44,6 +47,7 @@ public struct TranscriptView: View {
         self.composerHeight = composerHeight
         self.messages = messages
         self._shown = State(initialValue: messages)
+        self._revealed = State(initialValue: !messages.isEmpty)
         self.busy = busy
         self.status = status
         self.activity = activity
@@ -58,8 +62,15 @@ public struct TranscriptView: View {
     /// Kept here and lent to the rows through the environment: a row is
     /// rebuilt on every delta that arrives, and state inside one goes
     /// with it.
+    /// The attachment a row asked to see whole: a picture, a video, a
+    /// file. Set while its bytes are fetched (the tile shows that), then
+    /// shown by the system's preview where there is one, else the viewer.
     @State private var openedImage: String?
     @State private var openedCalls: [TranscriptMessage]?
+    #if canImport(QuickLook)
+    /// The attachment as a file, for the system's preview (Quick Look).
+    @State private var previewFile: URL?
+    #endif
 
     static let bottom = "status"
 
@@ -74,6 +85,13 @@ public struct TranscriptView: View {
 
     /// The rows drawn: the app's, as of its last change.
     @State private var shown: [TranscriptMessage]
+    /// The rows are drawn. Rows that come after the thread has opened (its
+    /// first sync, with nothing cached) are laid out from the top and
+    /// scrolled to their end a frame later, and the thread's top showed
+    /// for that frame: they stay invisible until the list stands at its
+    /// end. Rows the thread opens with are drawn at once, as before.
+    @State private var revealed: Bool
+    @State private var revealEnds: Task<Void, Never>?
     /// The row that asks for earlier rows is in view.
     @State private var earlierInView = false
     /// The row kept at the top while a page of earlier rows goes in above
@@ -98,10 +116,26 @@ public struct TranscriptView: View {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
             toBottom()
+            // Drawn by now whatever the layout did.
+            reveal(after: 0)
             try? await Task.sleep(nanoseconds: 900_000_000)
             guard !Task.isCancelled else { return }
             toBottom()
             settling = false
+        }
+    }
+
+    /// Draws the rows once the scroll to their end has landed: a frame or
+    /// two after the list laid them out (`after` nanoseconds).
+    private func reveal(after delay: UInt64 = 34_000_000) {
+        guard !revealed, revealEnds == nil else { return }
+        revealEnds = Task { @MainActor in
+            if delay > 0 { try? await Task.sleep(nanoseconds: delay) }
+            guard !Task.isCancelled else { return }
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { revealed = true }
+            revealEnds = nil
         }
     }
 
@@ -174,10 +208,13 @@ public struct TranscriptView: View {
                         .transcriptCell()
                         .id(Self.bottom)
                 }
-                .listRowSeparator(.hidden)
+                .rowSeparatorHidden()
                 .plainListRow()
             }
             .listStyle(.plain)
+            // Invisible while rows laid out from the top are on their way
+            // to their end; the empty state is always drawn.
+            .opacity(shown.isEmpty || revealed ? 1 : 0)
             // A plain list's own edge is a hard band under the bar.
             .softTopEdge()
             .noMinimumRowHeight()
@@ -200,6 +237,9 @@ public struct TranscriptView: View {
             .onContentHeightChange {
                 if settling {
                     toBottom()
+                    // The first rows are laid out: drawn once the scroll
+                    // to their end has landed.
+                    if !shown.isEmpty { reveal() }
                 } else if let keptAtTop {
                     // As the list lays out the page: before the frame that
                     // would show the page's top.
@@ -294,10 +334,27 @@ public struct TranscriptView: View {
             }
             .environment(\.openedTranscriptImage, $openedImage)
             .environment(\.openedToolCalls, $openedCalls)
+            #if canImport(QuickLook)
+            // The system's preview: pictures zoom, videos play, documents
+            // open, with its own share. The attachment's bytes are fetched
+            // first (a picture's are at hand; a video's take a moment, the
+            // tile spinning meanwhile), then handed over as a file.
+            .quickLookPreview($previewFile)
+            .onChange(of: openedImage) { _, reference in
+                guard let reference else { return }
+                Task { @MainActor in
+                    let file = await TranscriptFiles.local(for: reference)
+                    guard openedImage == reference else { return }
+                    openedImage = nil
+                    previewFile = file
+                }
+            }
+            #else
             .sheet(isPresented: Binding(get: { openedImage != nil },
                                         set: { if !$0 { openedImage = nil } })) {
                 if let url = openedImage { ImageViewer(url: url) }
             }
+            #endif
             .sheet(isPresented: Binding(get: { openedCalls != nil },
                                         set: { if !$0 { openedCalls = nil } })) {
                 if let run = openedCalls { ToolCallsSheet(run: run) }
