@@ -195,13 +195,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
 }
 
 extension AgentComposer {
-    /// What the microphone does: on a TV, the system keyboard, where the
-    /// remote's own dictation is; elsewhere the app's dictation, started,
-    /// or stopped while listening. Nil where there is neither.
+    /// What the microphone does: the app's dictation, started, or
+    /// stopped while listening. Nil where there is none.
     var dictate: (() -> Void)? {
-        #if os(tvOS)
-        return { focused = true }
-        #else
         guard let dictation else { return nil }
         return {
             if listening {
@@ -223,7 +219,6 @@ extension AgentComposer {
                 }
             }
         }
-        #endif
     }
 }
 

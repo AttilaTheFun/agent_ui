@@ -6,8 +6,6 @@ import SwiftUI
 /// stopped by the same button, after which what was heard is sent as
 /// any message. The app's object does the listening (the system's speech
 /// recognition, on a phone or a Mac); the composer draws the buttons.
-/// A TV has none of this: its microphone button opens the system
-/// keyboard, where the remote's own dictation does the work.
 @MainActor
 public protocol Dictation: AnyObject {
     /// Starts listening. `heard` is called with everything heard so far,
