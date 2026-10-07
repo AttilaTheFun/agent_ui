@@ -92,6 +92,11 @@ public struct TranscriptView: View {
     /// end. Rows the thread opens with are drawn at once, as before.
     @State private var revealed: Bool
     @State private var revealEnds: Task<Void, Never>?
+    /// The empty state last shown ("Loading…"), kept on screen while the
+    /// first rows are hidden, so opening is one change — from it to the
+    /// thread at its end — rather than a blank between the two (the app
+    /// changes the empty state's words in the same update the rows come).
+    @State private var heldEmpty: (title: String, body: String)?
     /// The row that asks for earlier rows is in view.
     @State private var earlierInView = false
     /// The row kept at the top while a page of earlier rows goes in above
@@ -213,8 +218,15 @@ public struct TranscriptView: View {
             }
             .listStyle(.plain)
             // Invisible while rows laid out from the top are on their way
-            // to their end; the empty state is always drawn.
+            // to their end; the empty state is always drawn, and stays
+            // over the hidden rows until they are shown.
             .opacity(shown.isEmpty || revealed ? 1 : 0)
+            .overlay(alignment: .top) { heldEmptyList }
+            .onChange(of: emptyWords, initial: true) { _, _ in
+                // Only while the thread is empty: the words that change with
+                // the rows' coming are not the ones that were on screen.
+                if messages.isEmpty { heldEmpty = (emptyTitle, emptyBody) }
+            }
             // A plain list's own edge is a hard band under the bar.
             .softTopEdge()
             .noMinimumRowHeight()
@@ -362,10 +374,31 @@ public struct TranscriptView: View {
         }
     }
 
-    private var emptyState: some View {
+    private var emptyState: some View { emptyState(title: emptyTitle, body: emptyBody) }
+
+    private var emptyWords: String { emptyTitle + "\n" + emptyBody }
+
+    /// Over the hidden first rows: the same list with the same row as the
+    /// empty state just shown, so it lines up exactly.
+    @ViewBuilder private var heldEmptyList: some View {
+        if !shown.isEmpty, !revealed, let heldEmpty {
+            List {
+                emptyState(title: heldEmpty.title, body: heldEmpty.body)
+                    .transcriptCell()
+                    .listRowSeparator(.hidden)
+                    .plainListRow()
+            }
+            .listStyle(.plain)
+            .noMinimumRowHeight()
+            .scrollDisabled(true)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func emptyState(title: String, body: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(emptyTitle).font(.title3.bold())
-            Text(emptyBody).foregroundColor(.secondary)
+            Text(title).font(.title3.bold())
+            Text(body).foregroundColor(.secondary)
             if let emptyFootnote {
                 Text(emptyFootnote).font(.caption).foregroundColor(.secondary)
             }
