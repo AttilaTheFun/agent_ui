@@ -1,9 +1,11 @@
 import SwiftUI
 
 /// The send button, or what stands in its place: a spinner while a message
-/// is on its way, stop (with send-now and queue) while the agent works. A
-/// view of its own, the one that reads the draft (is there anything to
-/// send?), so a keystroke redraws it and not its neighbours.
+/// is on its way, stop (with send-now and queue) while the agent works, a
+/// microphone while nothing is written and dictation is at hand (a
+/// waveform while it listens). A view of its own, the one that reads the
+/// draft (is there anything to send?), so a keystroke redraws it and not
+/// its neighbours.
 struct ComposerSendButton: View {
     @Binding var draft: String
     let busy: Bool
@@ -14,6 +16,10 @@ struct ComposerSendButton: View {
     let send: (String) -> Void
     let steer: ((String) -> Void)?
     let stop: () -> Void
+    /// What the microphone does, when there is one: starts listening, or
+    /// stops it while `listening`. Nil for no dictation here.
+    var dictate: (() -> Void)? = nil
+    var listening = false
 
     private var canSend: Bool { !AgentText.isBlank(draft) || attachmentCount > 0 }
 
@@ -45,6 +51,18 @@ struct ComposerSendButton: View {
             Button(action: stop) { Image(systemName: "stop.fill").agentCircleTarget(tint: AgentComposerMetrics.stopTint) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Stop")
+        } else if listening, let dictate {
+            // Listening: the button stops it, and what was heard stays.
+            Button(action: dictate) { Image(systemName: "waveform").agentCircleTarget(tint: AgentComposerMetrics.stopTint) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Stop dictating")
+                .accessibilityIdentifier("dictating")
+        } else if !canSend, let dictate {
+            // Nothing written: the microphone, where there is dictation.
+            Button(action: dictate) { Image(systemName: "mic.fill").agentCircleTarget() }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dictate")
+                .accessibilityIdentifier("dictate")
         } else {
             Button { send(draft) } label: { Image(systemName: "arrow.up").agentCircleTarget() }
                 .buttonStyle(.plain)
