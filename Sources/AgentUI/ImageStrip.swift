@@ -49,6 +49,8 @@ public struct ImageStrip: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Open the attachment")
+                    // Named for a test that opens one of several.
+                    .accessibilityIdentifier("attachment-" + String(url.split(separator: "/").last ?? ""))
                 }
                 if alignment == .leading { Spacer(minLength: 0) }
             }
