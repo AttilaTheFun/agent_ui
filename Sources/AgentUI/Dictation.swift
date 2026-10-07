@@ -13,7 +13,7 @@ public protocol Dictation: AnyObject {
     /// Starts listening. `heard` is called with everything heard so far,
     /// each time more comes. Throws when the system refuses (no
     /// permission, no microphone).
-    func start(heard: @escaping @MainActor (String) -> Void) async throws
+    func start(heard: @escaping @MainActor @Sendable (String) -> Void) async throws
     /// Stops listening; what was heard stays in the draft.
     func stop()
 }
