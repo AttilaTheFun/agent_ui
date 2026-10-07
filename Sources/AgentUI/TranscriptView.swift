@@ -174,7 +174,7 @@ public struct TranscriptView: View {
                         .transcriptCell()
                         .id(Self.bottom)
                 }
-                .listRowSeparator(.hidden)
+                .rowSeparatorHidden()
                 .plainListRow()
             }
             .listStyle(.plain)

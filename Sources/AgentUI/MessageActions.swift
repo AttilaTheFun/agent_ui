@@ -29,7 +29,7 @@ public struct MessageActions: View {
     }
 
     @ViewBuilder private var share: some View {
-        #if canImport(AppKit) || canImport(UIKit)
+        #if (canImport(AppKit) || canImport(UIKit)) && !os(tvOS)
         ShareLink(item: text) {
             Image(systemName: "square.and.arrow.up")
         }

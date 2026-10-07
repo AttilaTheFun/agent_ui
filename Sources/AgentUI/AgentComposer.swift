@@ -161,7 +161,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                         .padding(.bottom, AgentComposerMetrics.controlsRoom.bottom)
                     // The one flexible gap: everything else is `gap`.
                     Spacer(minLength: AgentComposerMetrics.gap)
-                    #if canImport(AppKit) || canImport(UIKit)
+                    #if (canImport(AppKit) || canImport(UIKit)) && !os(tvOS)
                     // Escape stops the agent, as it does in its terminal,
                     // whatever the button shows (a message on its way, too).
                     if busy {

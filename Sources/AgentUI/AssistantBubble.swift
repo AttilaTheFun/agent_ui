@@ -13,7 +13,7 @@ public struct AssistantBubble: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             MarkdownText(text)
-                .textSelection(.enabled)
+                .selectableText()
                 .frame(maxWidth: .infinity, alignment: .leading)
             if !text.isEmpty { MessageActions(text: text) }
         }

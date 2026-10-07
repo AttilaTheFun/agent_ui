@@ -59,7 +59,7 @@ public struct ImageViewer: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                #if canImport(AppKit) || canImport(UIKit)
+                #if (canImport(AppKit) || canImport(UIKit)) && !os(tvOS)
                 ToolbarItem(placement: .primaryAction) {
                     if let file {
                         // A file, not a string: that is what puts Save
@@ -106,6 +106,10 @@ public struct ImageViewer: View {
     #endif
 
     private var zoomGesture: some Gesture {
+        #if os(tvOS)
+        // A TV has no pinch: the picture is shown as it is.
+        TapGesture()
+        #else
         MagnifyGesture()
             .onChanged { pinching = $0.magnification }
             .onEnded { _ in
@@ -113,9 +117,13 @@ public struct ImageViewer: View {
                 pinching = 1
                 if zoom <= 1 { offset = .zero }
             }
+        #endif
     }
 
     private var panGesture: some Gesture {
+        #if os(tvOS)
+        TapGesture()
+        #else
         DragGesture()
             .onChanged { value in if scale > 1 { dragging = value.translation } }
             .onEnded { value in
@@ -124,5 +132,6 @@ public struct ImageViewer: View {
                 offset.height += value.translation.height
                 dragging = .zero
             }
+        #endif
     }
 }

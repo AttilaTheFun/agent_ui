@@ -8,7 +8,7 @@ struct DraftField: View {
     @Binding var selection: DraftSelection?
 
     var body: some View {
-        #if canImport(AppKit) || canImport(UIKit)
+        #if (canImport(AppKit) || canImport(UIKit)) && !os(tvOS)
         TextField(placeholder, text: $draft, selection: $selection, axis: .vertical)
         #else
         TextField(placeholder, text: $draft, axis: .vertical)

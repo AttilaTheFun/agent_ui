@@ -17,7 +17,7 @@ public struct MarkdownText: View {
         }
         // On every block, not only the ones that ask: a paragraph, a
         // heading and a list item are all worth selecting a line out of.
-        .textSelection(.enabled)
+        .selectableText()
     }
 
     @ViewBuilder private func blockView(_ block: MarkdownBlock) -> some View {
@@ -26,7 +26,7 @@ public struct MarkdownText: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(code)
                     .font(.footnote.monospaced())
-                    .textSelection(.enabled)
+                    .selectableText()
                     .padding(10)
             }
             .background(Color.secondary.opacity(0.12))
