@@ -27,6 +27,12 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     let attachments: Attachments
     /// Ways to finish a draft, shown above the field while there are any.
     let suggest: (String) -> [AgentSuggestion]
+    /// Speech into the draft, where the app provides it.
+    let dictation: (any Dictation)?
+    /// Dictation is listening: the words come into the draft as heard.
+    @State private var listening = false
+    /// What the draft was when listening began: what is heard follows it.
+    @State private var dictatedFrom = ""
     let pick: (AgentSuggestion) -> Void
     @FocusState private var focused: Bool
     /// Bumped after a send. Apple's multi-line field goes on showing what
@@ -53,9 +59,11 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
                 steer: (() -> Void)? = nil, sending: Bool = false,
                 suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
+                dictation: (any Dictation)? = nil,
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
         self.suggest = suggestions
         self.pick = pick
+        self.dictation = dictation
         self._draft = draft
         self.placeholder = placeholder
         self.busy = busy
@@ -174,7 +182,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     #endif
                     ComposerSendButton(draft: $draft, busy: busy, sending: sending, attachmentCount: attachmentCount,
                                        send: { fire(send, words: $0) }, steer: steer.map { steer in { fire(steer, words: $0) } },
-                                       stop: stop)
+                                       stop: stop, dictate: dictate, listening: listening)
                 }
             }
             .padding(.top, AgentComposerMetrics.gap)
@@ -183,6 +191,39 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // arrives in the thread, the same update.
             .onChange(of: sending) { _, now in if !now { sentWords = nil } }
         }
+    }
+}
+
+extension AgentComposer {
+    /// What the microphone does: on a TV, the system keyboard, where the
+    /// remote's own dictation is; elsewhere the app's dictation, started,
+    /// or stopped while listening. Nil where there is neither.
+    var dictate: (() -> Void)? {
+        #if os(tvOS)
+        return { focused = true }
+        #else
+        guard let dictation else { return nil }
+        return {
+            if listening {
+                dictation.stop()
+                listening = false
+                return
+            }
+            dictatedFrom = draft
+            listening = true
+            Task { @MainActor in
+                do {
+                    try await dictation.start { heard in
+                        guard listening else { return }
+                        let before = dictatedFrom
+                        draft = before.isEmpty || before.hasSuffix(" ") || heard.isEmpty ? before + heard : before + " " + heard
+                    }
+                } catch {
+                    listening = false
+                }
+            }
+        }
+        #endif
     }
 }
 
