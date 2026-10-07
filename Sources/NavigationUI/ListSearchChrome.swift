@@ -65,7 +65,7 @@ public struct ListSearchChrome<Content: View>: View {
         // keyboard for every letter, over a list the remote scans as fast.
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text(title).font(.title2.weight(.bold))
+                Text(title).font(.title3.weight(.bold)).lineLimit(1).minimumScaleFactor(0.7)
                 Spacer()
                 if let compose {
                     Button(action: compose) { Image(systemName: "square.and.pencil") }

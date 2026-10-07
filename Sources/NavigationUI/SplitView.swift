@@ -53,7 +53,7 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
         // Messages' edges under the bars: the list of conversations a hard
         // band, the conversation a soft fade.
         NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
-            sidebar.hardTopEdge().sidebarWidth()
+            sidebar.hardTopEdge()
         } detail: {
             DetailColumn { detail }.softTopEdge()
         }
@@ -62,16 +62,6 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
 }
 
 private extension View {
-    /// A TV's sidebar wide enough for a session's name and its last line
-    /// at the TV's type; elsewhere the system's own width.
-    @ViewBuilder func sidebarWidth() -> some View {
-        #if os(tvOS)
-        navigationSplitViewColumnWidth(min: 520, ideal: 560, max: 640)
-        #else
-        self
-        #endif
-    }
-
     /// Balanced columns, where a TV is not: its balanced style shows one
     /// column at a time, and its own (the sidebar over the detail, drawn
     /// in while focused) is the two-column one.
