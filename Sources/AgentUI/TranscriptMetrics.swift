@@ -11,9 +11,9 @@ public enum TranscriptMetrics {
     /// A thread is uncomfortable to read across a large display: the
     /// messages and the composer stop here and centre in a wider column.
     /// (A TV's type is near twice a phone's, read from across a room: the
-    /// column is wider in the same measure, and clear of the sidebar the
-    /// TV lays over the detail's leading edge.)
-    public static let maxContentWidth: CGFloat = AgentComposerMetrics.tv ? 1000 : 720
+    /// column is what the screen has beside the sidebar, NavigationUI's
+    /// SplitMetrics, within the safe area.)
+    public static let maxContentWidth: CGFloat = AgentComposerMetrics.tv ? 1280 : 720
     /// A picture's corner, in the transcript and in the viewer.
     public static let imageCorner: CGFloat = 8
     /// The longest side a picture takes in the transcript.

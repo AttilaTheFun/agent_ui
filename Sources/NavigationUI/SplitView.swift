@@ -50,6 +50,22 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
     private var hasInspector: Bool { !(inspector is EmptyView) }
 
     private var split: some View {
+        #if os(tvOS)
+        // A TV: the two columns side by side, laid out here. The system's
+        // split view lays its sidebar OVER the detail at a width of its
+        // own (ignoring the one asked for) and its balanced style shows
+        // one column at a time; neither gives a thread the room beside a
+        // list. The sidebar is a card at the system's width, the detail
+        // what is left.
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: SplitMetrics.tvSidebarWidth)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .padding(.vertical, 24)
+                .padding(.leading, 24)
+            DetailColumn { detail }
+        }
+        #else
         // Messages' edges under the bars: the list of conversations a hard
         // band, the conversation a soft fade.
         NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
@@ -57,21 +73,15 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
         } detail: {
             DetailColumn { detail }.softTopEdge()
         }
-        .splitStyle()
+        .navigationSplitViewStyle(.balanced)
+        #endif
     }
 }
 
-private extension View {
-    /// Balanced columns, where a TV is not: its balanced style shows one
-    /// column at a time, and its own (the sidebar over the detail, drawn
-    /// in while focused) is the two-column one.
-    @ViewBuilder func splitStyle() -> some View {
-        #if os(tvOS)
-        self
-        #else
-        navigationSplitViewStyle(.balanced)
-        #endif
-    }
+/// The TV's own split: the sidebar's width, which the thread's column
+/// (AgentUI's TranscriptMetrics) is laid out beside.
+public enum SplitMetrics {
+    public static let tvSidebarWidth: CGFloat = 480
 }
 
 extension SplitView where Inspector == EmptyView {
