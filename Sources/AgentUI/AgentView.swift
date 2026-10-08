@@ -30,6 +30,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     let attachments: () -> Attachments
     let suggestions: (String) -> [AgentSuggestion]
     let pick: (AgentSuggestion) -> Void
+    let dictation: (any Dictation)?
 
     /// - Parameters:
     ///   - messages: the record; the only thing that adds rows.
@@ -43,6 +44,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 busy: Bool, sending: Bool = false, attachmentCount: Int = 0, send: @escaping () -> Void,
                 stop: @escaping () -> Void, steer: (() -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
                 suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
+                dictation: (any Dictation)? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -58,6 +60,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.busy = busy
         self.sending = sending
         self.attachmentCount = attachmentCount
+        self.dictation = dictation
         self.send = send
         self.stop = stop
         self.steer = steer
@@ -97,7 +100,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
-                              sending: sending, suggestions: suggestions, pick: pick, controls: controls, attachments: attachments)
+                              sending: sending, suggestions: suggestions, pick: pick, dictation: dictation, controls: controls, attachments: attachments)
                     .background(GeometryReader { proxy in
                         Color.clear.onChange(of: proxy.size.height, initial: true) { _, height in composerHeight = height }
                     })
