@@ -8,7 +8,7 @@ import SwiftUI
 /// reports key presses, and a row of those keys on a phone. Dragging
 /// scrolls back through what has gone off the top.
 public struct TerminalScreenView: View {
-    @ObservedObject var screen: TerminalScreen
+    var screen: TerminalScreen
     let fontSize: CGFloat
     let keyBar: Bool
     let paste: (() -> String?)?

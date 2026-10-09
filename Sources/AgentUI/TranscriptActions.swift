@@ -5,14 +5,14 @@ import UIKit
 import AppKit
 #endif
 
-/// The two things a host has to lend the transcript: somewhere to put
-/// text, and somewhere to send it. Apple has both of its own.
+/// What a host may lend the transcript: somewhere to put text. Apple's
+/// pasteboard, and the portable SwiftUI's, are used otherwise. (Sharing is
+/// ShareLink everywhere.)
 ///
 /// Main-actor state: set as the app starts, read from views.
 @MainActor
 public enum TranscriptActions {
     public static var copy: ((String) -> Void)?
-    public static var share: ((String) -> Void)?
 
     static func put(_ text: String) {
         if let copy { copy(text); return }

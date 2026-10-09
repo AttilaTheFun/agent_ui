@@ -55,7 +55,9 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
         NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
             sidebar.hardTopEdge()
         } detail: {
-            DetailColumn { detail }.softTopEdge()
+            // The column as it is: SwiftUI gives a detail its own bar
+            // (a stack around it would strip it on a collapsed phone).
+            detail.softTopEdge()
         }
         .navigationSplitViewStyle(.balanced)
     }

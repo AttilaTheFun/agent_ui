@@ -28,19 +28,13 @@ public struct MessageActions: View {
         .padding(.top, 4)
     }
 
-    @ViewBuilder private var share: some View {
-        #if canImport(AppKit) || canImport(UIKit)
+    /// The system's share sheet (the web's navigator.share or clipboard,
+    /// Android's chooser, as Isomer carries ShareLink there).
+    private var share: some View {
         ShareLink(item: text) {
             Image(systemName: "square.and.arrow.up")
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("share-message")
-        #else
-        if let hand = TranscriptActions.share {
-            Button { hand(text) } label: { Image(systemName: "square.and.arrow.up") }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("share-message")
-        }
-        #endif
     }
 }
