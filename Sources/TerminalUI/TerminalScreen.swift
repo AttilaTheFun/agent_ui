@@ -1,3 +1,4 @@
+import Observation
 import SwiftTerm
 import SwiftUI
 
@@ -9,27 +10,29 @@ import SwiftUI
 /// Main-actor state, lent to the view by the app, like `TranscriptActions`.
 /// Everything that touches the emulator holds its lock, as SwiftTerm asks
 /// of a host that drives it without its own views.
+/// Observed (Observation) through `frame` alone: what a view draws.
 @MainActor
-public final class TerminalScreen: ObservableObject {
+@Observable
+public final class TerminalScreen {
     /// What the terminal shows now.
-    @Published public private(set) var frame: TerminalFrame
-    public private(set) var cols: Int
-    public private(set) var rows: Int
+    public private(set) var frame: TerminalFrame
+    @ObservationIgnored public private(set) var cols: Int
+    @ObservationIgnored public private(set) var rows: Int
     /// Whether a view has given it its size yet; until then `cols` and
     /// `rows` are only what it was made with.
-    public private(set) var sized = false
+    @ObservationIgnored public private(set) var sized = false
     /// Bytes for the program: what was typed, encoded as the terminal's
     /// modes say, and the terminal's answers to the program's queries.
-    public var onInput: (([UInt8]) -> Void)?
+    @ObservationIgnored public var onInput: (([UInt8]) -> Void)?
     /// The screen took a new size (the view laid out): the program should
     /// be told.
-    public var onResize: ((_ cols: Int, _ rows: Int) -> Void)?
+    @ObservationIgnored public var onResize: ((_ cols: Int, _ rows: Int) -> Void)?
 
     private let outlet = TerminalOutlet()
     private let terminal: Terminal
     /// A frame is owed: drawn once per turn of the main actor, however many
     /// chunks arrive in it.
-    private var drawing: Task<Void, Never>?
+    @ObservationIgnored private var drawing: Task<Void, Never>?
 
     public init(cols: Int = 80, rows: Int = 24) {
         self.cols = max(2, cols)
