@@ -10,7 +10,9 @@ enum InlineMarkdown {
         var result: Text? = nil
         for span in spans {
             var piece = Text(span.text)
-            if span.bold { piece = piece.bold() }
+            // Semibold, as Apple's markdown draws **strong** (lighter than
+            // .bold(): the same line is 339pt there, 348pt bold).
+            if span.bold { piece = piece.fontWeight(.semibold) }
             if span.italic { piece = piece.italic() }
             if span.code { piece = piece.monospaced() }
             if span.strike { piece = piece.strikethrough() }
