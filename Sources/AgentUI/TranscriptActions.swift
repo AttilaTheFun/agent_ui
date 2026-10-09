@@ -12,6 +12,8 @@ import AppKit
 @MainActor
 public enum TranscriptActions {
     public static var copy: ((String) -> Void)?
+    /// No longer asked: ShareLink is used everywhere. Kept so a host that
+    /// still sets it builds.
     public static var share: ((String) -> Void)?
 
     static func put(_ text: String) {

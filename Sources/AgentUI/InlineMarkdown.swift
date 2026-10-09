@@ -14,7 +14,8 @@ enum InlineMarkdown {
             if span.italic { piece = piece.italic() }
             if span.code { piece = piece.monospaced() }
             if span.strike { piece = piece.strikethrough() }
-            if span.link { piece = piece.underline().bold().foregroundColor(.secondary) }
+            // Semibold, as MarkdownText's attributed links are.
+            if span.link { piece = piece.underline().fontWeight(.semibold).foregroundColor(.secondary) }
             result = result.map { $0 + piece } ?? piece
         }
         return result ?? Text("")
