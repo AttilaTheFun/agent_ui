@@ -237,239 +237,277 @@ public struct TranscriptView: View {
     }
 
     public var body: some View {
+        // In steps, each a small expression: one long chain of modifiers
+        // was more than some SwiftUIs' type checker would take in time.
         ScrollViewReader { proxy in
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
-            List {
-                Group {
-                    if !shown.isEmpty {
-                        // The rows before these: coming into view asks for
-                        // them, and the row spins until they are in. Always
-                        // there, empty when there is nothing before, like
-                        // the status row: put in when the app learns there
-                        // are earlier rows (its first answer after a
-                        // launch, often the one to a send), it moved every
-                        // row under it down.
-                        ZStack {
-                            if loadEarlier != nil { ProgressView().controlSize(.small) }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: Self.earlierRowHeight)
-                        .onAppear {
-                            stage.earlierInView = true
-                            askEarlier()
-                        }
-                        .onDisappear { stage.earlierInView = false }
+            presenting(room(arrivals(opening(following(framed(rows), toBottom: toBottom), proxy: proxy, toBottom: toBottom),
+                                     toBottom: toBottom), toBottom: toBottom))
+        }
+    }
+
+    /// The thread's rows: the one for earlier rows, the rows, the status row.
+    private var rows: some View {
+        List {
+            Group {
+                if !shown.isEmpty {
+                    // The rows before these: coming into view asks for
+                    // them, and the row spins until they are in. Always
+                    // there, empty when there is nothing before, like
+                    // the status row: put in when the app learns there
+                    // are earlier rows (its first answer after a
+                    // launch, often the one to a send), it moved every
+                    // row under it down.
+                    ZStack {
+                        if loadEarlier != nil { ProgressView().controlSize(.small) }
                     }
-                    if shown.isEmpty { emptyState }
-                    ForEach(TranscriptBlock.blocks(shown)) { block in
-                        switch block {
-                        case .message(let message): TranscriptRow(message: message).transcriptCell()
-                        case .calls(let run): ToolCallsRow(run: run).transcriptCell()
-                        }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.earlierRowHeight)
+                    .onAppear {
+                        stage.earlierInView = true
+                        askEarlier()
                     }
-                    StatusRow(busy: busy, status: status, activity: activity, error: error)
-                        .transcriptCell()
-                        .id(Self.bottom)
+                    .onDisappear { stage.earlierInView = false }
                 }
-                .listRowSeparator(.hidden)
-                .plainListRow()
-            }
-            .listStyle(.plain)
-            // Invisible while rows laid out from the top are on their way
-            // to their end; the empty state is always drawn, and stays
-            // over the hidden rows until they are shown.
-            .opacity(shown.isEmpty || revealed ? 1 : 0)
-            .overlay(alignment: .top) { heldEmptyList }
-            .onChange(of: emptyWords, initial: true) { _, _ in
-                // Only while the thread is empty: the words that change with
-                // the rows' coming are not the ones that were on screen.
-                if messages.isEmpty, heldEmpty?.title != emptyTitle || heldEmpty?.body != emptyBody {
-                    heldEmpty = (emptyTitle, emptyBody)
-                }
-            }
-            // A plain list's own edge is a hard band under the bar.
-            .softTopEdge()
-            .noMinimumRowHeight()
-            // The bottom stays put as the list or its rows change size —
-            // while following the end; read further up, what is read does.
-            .bottomAnchoredOnResize(following && !(holdTop || sending))
-            // Following the end, or not: the user going up stops it; the
-            // end coming into view, however it does, starts it again.
-            .onScrollGeometryChange(for: EndState.self) { geometry in
-                let seen = geometry.contentOffset.y + geometry.containerSize.height - geometry.contentInsets.bottom
-                return EndState(offset: geometry.contentOffset.y, atEnd: geometry.contentSize.height - seen <= Self.endSlack)
-            } action: { old, new in
-                if new.atEnd {
-                    if !following { following = true }
-                    hidePill()
-                } else if new.offset < old.offset - 1, following {
-                    following = false
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if unseen > 0 {
-                    NewRowsPill(count: unseen) {
-                        withAnimation(.smooth(duration: 0.35)) { toBottom() }
-                        hidePill()
+                if shown.isEmpty { emptyState }
+                ForEach(TranscriptBlock.blocks(shown)) { block in
+                    switch block {
+                    case .message(let message): TranscriptRow(message: message).transcriptCell()
+                    case .calls(let run): ToolCallsRow(run: run).transcriptCell()
                     }
-                    .padding(.bottom, 10)
-                    .transition(.opacity)
                 }
+                StatusRow(busy: busy, status: status, activity: activity, error: error)
+                    .transcriptCell()
+                    .id(Self.bottom)
             }
-            .onChange(of: sending) { _, now in
-                guard now else { return }
-                // What the user sends, they go down to, wherever they were.
+            .listRowSeparator(.hidden)
+            .plainListRow()
+        }
+        .listStyle(.plain)
+    }
+
+    /// Drawn once its first rows have landed, over the held empty state.
+    private func framed(_ list: some View) -> some View {
+        list
+        // Invisible while rows laid out from the top are on their way
+        // to their end; the empty state is always drawn, and stays
+        // over the hidden rows until they are shown.
+        .opacity(shown.isEmpty || revealed ? 1 : 0)
+        .overlay(alignment: .top) { heldEmptyList }
+        .onChange(of: emptyWords, initial: true) { _, _ in
+            // Only while the thread is empty: the words that change with
+            // the rows' coming are not the ones that were on screen.
+            if messages.isEmpty, heldEmpty?.title != emptyTitle || heldEmpty?.body != emptyBody {
+                heldEmpty = (emptyTitle, emptyBody)
+            }
+        }
+        // A plain list's own edge is a hard band under the bar.
+        .softTopEdge()
+        .noMinimumRowHeight()
+    }
+
+    /// Following the end, and the pill while it is not followed.
+    private func following(_ content: some View, toBottom: @escaping () -> Void) -> some View {
+        content
+        // The bottom stays put as the list or its rows change size —
+        // while following the end; read further up, what is read does.
+        .bottomAnchoredOnResize(following && !(holdTop || sending))
+        // Following the end, or not: the user going up stops it; the
+        // end coming into view, however it does, starts it again.
+        .onScrollGeometryChange(for: EndState.self) { geometry in
+            let seen = geometry.contentOffset.y + geometry.containerSize.height - geometry.contentInsets.bottom
+            return EndState(offset: geometry.contentOffset.y, atEnd: geometry.contentSize.height - seen <= Self.endSlack)
+        } action: { old, new in
+            if new.atEnd {
                 if !following { following = true }
                 hidePill()
-                // Whether or not a row goes in (a message that waits for
-                // the turn to end does not): the room the composer gave up
-                // is taken in one eased motion.
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 60_000_000)
-                    withAnimation(.smooth(duration: 0.3)) { toBottom() }
-                }
+            } else if new.offset < old.offset - 1, following {
+                following = false
             }
-            .onAppear {
+        }
+        .overlay(alignment: .bottom) {
+            if unseen > 0 {
+                NewRowsPill(count: unseen) {
+                    withAnimation(.smooth(duration: 0.35)) { toBottom() }
+                    hidePill()
+                }
+                .padding(.bottom, 10)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    /// Opening, a send, and the list measuring its rows.
+    private func opening(_ content: some View, proxy: ScrollViewProxy, toBottom: @escaping () -> Void) -> some View {
+        content
+        .onChange(of: sending) { _, now in
+            guard now else { return }
+            // What the user sends, they go down to, wherever they were.
+            if !following { following = true }
+            hidePill()
+            // Whether or not a row goes in (a message that waits for
+            // the turn to end does not): the room the composer gave up
+            // is taken in one eased motion.
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 60_000_000)
+                withAnimation(.smooth(duration: 0.3)) { toBottom() }
+            }
+        }
+        .onAppear {
+            toBottom()
+            if !shown.isEmpty { settle(toBottom) }
+        }
+        .onContentHeightChange {
+            if stage.settling {
                 toBottom()
-                if !shown.isEmpty { settle(toBottom) }
+                // The first rows are laid out: drawn once the scroll
+                // to their end has landed.
+                if !shown.isEmpty { reveal() }
+            } else if let keptAtTop = stage.keptAtTop {
+                // As the list lays out the page: before the frame that
+                // would show the page's top.
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { proxy.scrollTo(keptAtTop, anchor: .top) }
             }
-            .onContentHeightChange {
-                if stage.settling {
-                    toBottom()
-                    // The first rows are laid out: drawn once the scroll
-                    // to their end has landed.
-                    if !shown.isEmpty { reveal() }
-                } else if let keptAtTop = stage.keptAtTop {
-                    // As the list lays out the page: before the frame that
-                    // would show the page's top.
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { proxy.scrollTo(keptAtTop, anchor: .top) }
-                }
+        }
+        // Earlier rows learned of while their row is already in view.
+        .onChange(of: loadEarlier != nil) { _, _ in askEarlier() }
+        .onChange(of: shown.first?.id) { _, _ in askEarlier() }
+    }
+
+        // The rows drawn are this view's copy of the app's, changed as
+        // the app's change. Rows arriving at the end are put in below
+        // what is seen — the list holding its top still for that one
+        // change, rather than its bottom — and the thread then scrolls
+        // up to them, so every row comes in from the bottom. (The
+        // list's own insert animation fades a row in where it will sit
+        // and slides the rows under it down.) Anything else (the rows
+        // replaced whole, earlier ones loaded, a row's words) is not
+        // animated.
+    private func arrivals(_ content: some View, toBottom: @escaping () -> Void) -> some View {
+        content.onChange(of: messages) { _, new in took(new, toBottom: toBottom) }
+    }
+
+    private func took(_ new: [TranscriptMessage], toBottom: @escaping () -> Void) {
+        // Rows after the last while the thread is still settling
+        // after it opened are history catching up (the whole
+        // transcript arriving after the cached rows), not a reply:
+        // they go in with the thread kept at its bottom, not
+        // brought in from below.
+        let appended = Self.appends(new, to: shown) && !stage.settling
+        if !following, !stage.settling {
+            // Read further up: the rows go in below, what is read
+            // stays still (the list holds its top), and the pill
+            // counts them.
+            let added = Self.newRows(in: new, after: shown)
+            if stage.earlierInView, Self.prepends(new, to: shown), let kept = Self.firstKept(of: shown, in: new) {
+                keep(kept)
             }
-            // Earlier rows learned of while their row is already in view.
-            .onChange(of: loadEarlier != nil) { _, _ in askEarlier() }
-            .onChange(of: shown.first?.id) { _, _ in askEarlier() }
-            // The rows drawn are this view's copy of the app's, changed as
-            // the app's change. Rows arriving at the end are put in below
-            // what is seen — the list holding its top still for that one
-            // change, rather than its bottom — and the thread then scrolls
-            // up to them, so every row comes in from the bottom. (The
-            // list's own insert animation fades a row in where it will sit
-            // and slides the rows under it down.) Anything else (the rows
-            // replaced whole, earlier ones loaded, a row's words) is not
-            // animated.
-            .onChange(of: messages) { _, new in
-                // Rows after the last while the thread is still settling
-                // after it opened are history catching up (the whole
-                // transcript arriving after the cached rows), not a reply:
-                // they go in with the thread kept at its bottom, not
-                // brought in from below.
-                let appended = Self.appends(new, to: shown) && !stage.settling
-                if !following, !stage.settling {
-                    // Read further up: the rows go in below, what is read
-                    // stays still (the list holds its top), and the pill
-                    // counts them.
-                    let added = Self.newRows(in: new, after: shown)
-                    if stage.earlierInView, Self.prepends(new, to: shown), let kept = Self.firstKept(of: shown, in: new) {
-                        keep(kept)
-                    }
-                    shown = new
-                    showPill(adding: added)
-                } else if appended {
-                    holdTop = true
-                    shown = new
-                    // The scroll once the list has the rows and the box its
-                    // new height (the words sent leave it in the same
-                    // change): a scroll made before either has landed
-                    // measures against the old and goes nowhere.
-                    stage.arrivalEnds?.cancel()
-                    stage.arrivalEnds = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 60_000_000)
-                        guard !Task.isCancelled else { return }
-                        withAnimation(.smooth(duration: 0.3)) { toBottom() }
-                        try? await Task.sleep(nanoseconds: 350_000_000)
-                        guard !Task.isCancelled else { return }
-                        holdTop = false
-                    }
-                } else {
-                    let first = shown.isEmpty
-                    let moved = new.last?.id != shown.last?.id
-                    // A page of earlier rows put in above while the top is
-                    // in view: the row that was first stays where it was,
-                    // rather than the list showing the page's own first.
-                    if stage.earlierInView, Self.prepends(new, to: shown), let kept = Self.firstKept(of: shown, in: new) {
-                        keep(kept)
-                    }
-                    shown = new
-                    // Once the layout pass that takes the rows has been
-                    // applied.
-                    if moved {
-                        Task { @MainActor in
-                            // Where the main actor is not a queue of its
-                            // own, one more turn lets the layout land.
-                            #if !canImport(Dispatch)
-                            await Task.yield()
-                            #endif
-                            toBottom()
-                        }
-                    }
-                    // The first rows of a thread opened before they had
-                    // come: the list's first scroll measures rows it has
-                    // only estimated and stops short, so it goes again as
-                    // they are laid out.
-                    if first, !new.isEmpty { settle(toBottom) }
-                }
+            shown = new
+            showPill(adding: added)
+        } else if appended {
+            holdTop = true
+            shown = new
+            // The scroll once the list has the rows and the box its
+            // new height (the words sent leave it in the same
+            // change): a scroll made before either has landed
+            // measures against the old and goes nowhere.
+            stage.arrivalEnds?.cancel()
+            stage.arrivalEnds = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 60_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation(.smooth(duration: 0.3)) { toBottom() }
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { return }
+                holdTop = false
             }
-            // The room the thread has changed — the keyboard coming or
-            // going, the composer growing: the thread eases to the bottom
-            // over about the time the keyboard takes, rather than jumping
-            // there while the keyboard is still on its way.
-            // While rows arrive, their own scroll takes the thread to the
-            // bottom: a second scroll in the middle of it (the composer
-            // shrinking as the words sent leave it) fought it. Only while
-            // following: read further up, the thread stays where it is.
-            .onVisibleHeightChange { if following && !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
-            // On a Mac the composer bar's growth reaches the list as an
-            // inset its scroll geometry does not report, so the change
-            // above never fired and the last rows went under the box: the
-            // composer's own height is watched instead, and the thread
-            // scrolled once the new inset has landed — at once, as the box
-            // pushes it, not eased.
-            .onComposerHeightChange(composerHeight) {
-                guard following && !holdTop && !sending else { return }
+        } else {
+            let first = shown.isEmpty
+            let moved = new.last?.id != shown.last?.id
+            // A page of earlier rows put in above while the top is
+            // in view: the row that was first stays where it was,
+            // rather than the list showing the page's own first.
+            if stage.earlierInView, Self.prepends(new, to: shown), let kept = Self.firstKept(of: shown, in: new) {
+                keep(kept)
+            }
+            shown = new
+            // Once the layout pass that takes the rows has been
+            // applied.
+            if moved {
                 Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 30_000_000)
+                    // Where the main actor is not a queue of its
+                    // own, one more turn lets the layout land.
+                    #if !canImport(Dispatch)
+                    await Task.yield()
+                    #endif
                     toBottom()
                 }
             }
-            .environment(\.openedTranscriptImage, $openedImage)
-            .environment(\.openedToolCalls, $openedCalls)
-            #if canImport(QuickLook)
-            // The system's preview: pictures zoom, videos play, documents
-            // open, with its own share. The attachment's bytes are fetched
-            // first (a picture's are at hand; a video's take a moment, the
-            // tile spinning meanwhile), then handed over as a file.
-            .quickLookPreview($previewFile)
-            .onChange(of: openedImage) { _, reference in
-                guard let reference else { return }
-                Task { @MainActor in
-                    let file = await TranscriptFiles.local(for: reference)
-                    guard openedImage == reference else { return }
-                    openedImage = nil
-                    previewFile = file
-                }
+            // The first rows of a thread opened before they had
+            // come: the list's first scroll measures rows it has
+            // only estimated and stops short, so it goes again as
+            // they are laid out.
+            if first, !new.isEmpty { settle(toBottom) }
+        }
+    }
+
+    /// The room the thread has changed.
+    private func room(_ content: some View, toBottom: @escaping () -> Void) -> some View {
+        content
+        // The room the thread has changed — the keyboard coming or
+        // going, the composer growing: the thread eases to the bottom
+        // over about the time the keyboard takes, rather than jumping
+        // there while the keyboard is still on its way.
+        // While rows arrive, their own scroll takes the thread to the
+        // bottom: a second scroll in the middle of it (the composer
+        // shrinking as the words sent leave it) fought it. Only while
+        // following: read further up, the thread stays where it is.
+        .onVisibleHeightChange { if following && !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
+        // On a Mac the composer bar's growth reaches the list as an
+        // inset its scroll geometry does not report, so the change
+        // above never fired and the last rows went under the box: the
+        // composer's own height is watched instead, and the thread
+        // scrolled once the new inset has landed — at once, as the box
+        // pushes it, not eased.
+        .onComposerHeightChange(composerHeight) {
+            guard following && !holdTop && !sending else { return }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 30_000_000)
+                toBottom()
             }
-            #else
-            .sheet(isPresented: Binding(get: { openedImage != nil },
-                                        set: { if !$0 { openedImage = nil } })) {
-                if let url = openedImage { ImageViewer(url: url) }
+        }
+    }
+
+    /// What opens over the thread: an attachment, a run of tool calls.
+    private func presenting(_ content: some View) -> some View {
+        content
+        .environment(\.openedTranscriptImage, $openedImage)
+        .environment(\.openedToolCalls, $openedCalls)
+        #if canImport(QuickLook)
+        // The system's preview: pictures zoom, videos play, documents
+        // open, with its own share. The attachment's bytes are fetched
+        // first (a picture's are at hand; a video's take a moment, the
+        // tile spinning meanwhile), then handed over as a file.
+        .quickLookPreview($previewFile)
+        .onChange(of: openedImage) { _, reference in
+            guard let reference else { return }
+            Task { @MainActor in
+                let file = await TranscriptFiles.local(for: reference)
+                guard openedImage == reference else { return }
+                openedImage = nil
+                previewFile = file
             }
-            #endif
-            .sheet(isPresented: Binding(get: { openedCalls != nil },
-                                        set: { if !$0 { openedCalls = nil } })) {
-                if let run = openedCalls { ToolCallsSheet(run: run) }
-            }
+        }
+        #else
+        .sheet(isPresented: Binding(get: { openedImage != nil },
+                                    set: { if !$0 { openedImage = nil } })) {
+            if let url = openedImage { ImageViewer(url: url) }
+        }
+        #endif
+        .sheet(isPresented: Binding(get: { openedCalls != nil },
+                                    set: { if !$0 { openedCalls = nil } })) {
+            if let run = openedCalls { ToolCallsSheet(run: run) }
         }
     }
 
