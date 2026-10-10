@@ -12,7 +12,7 @@ public struct MarkdownText: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(MarkdownBlocks.split(text).enumerated()), id: \.offset) { _, block in
+            ForEach(Array(MarkdownCache.blocks(text).enumerated()), id: \.offset) { _, block in
                 blockView(block)
             }
         }
@@ -73,6 +73,10 @@ public struct MarkdownText: View {
     /// AttributedString; the portable one gets styled `Text` runs from a
     /// small parser of the same inline syntax.
     private func inline(_ text: String) -> Text {
+        MarkdownCache.inline(text, make: Self.styled)
+    }
+
+    private static func styled(_ text: String) -> Text {
         #if canImport(UIKit) || canImport(AppKit)
         if var attributed = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
             for run in attributed.runs where run.link != nil {

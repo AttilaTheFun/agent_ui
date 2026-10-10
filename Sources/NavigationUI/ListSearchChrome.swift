@@ -9,19 +9,21 @@ public struct ListSearchChrome<Content: View>: View {
     let prompt: String
     let composeLabel: String
     let compose: (() -> Void)?
-    @ViewBuilder let content: () -> Content
+    /// Built once, when the chrome is: kept as a builder closure it would
+    /// never compare equal, and be evaluated again on every pass.
+    let content: Content
     #if os(macOS)
     @FocusState private var searching: Bool
     #endif
 
     public init(text: Binding<String>, prompt: String = "Search",
                 composeLabel: String = "New", compose: (() -> Void)? = nil,
-                @ViewBuilder content: @escaping () -> Content) {
+                @ViewBuilder content: () -> Content) {
         self._text = text
         self.prompt = prompt
         self.composeLabel = composeLabel
         self.compose = compose
-        self.content = content
+        self.content = content()
     }
 
     public var body: some View {
@@ -29,7 +31,7 @@ public struct ListSearchChrome<Content: View>: View {
         // The system's own search and compose, which iOS 26 (and the
         // portable SwiftUI) draws as glass items in the bottom bar.
         if #available(iOS 26.0, *) {
-            content()
+            content
                 .searchable(text: $text, prompt: prompt)
                 .toolbar {
                     // The field takes the bar, with compose beside it, as
@@ -43,7 +45,7 @@ public struct ListSearchChrome<Content: View>: View {
                     }
                 }
         } else {
-            content()
+            content
                 .searchable(text: $text, prompt: prompt)
                 .toolbar {
                     if let compose {
@@ -57,7 +59,7 @@ public struct ListSearchChrome<Content: View>: View {
         #else
         // The Mac's shape: the field under the navigation bar, not in it;
         // compose stays a toolbar item.
-        content()
+        content
             .safeAreaInset(edge: .top) { searchField.padding(.horizontal, 12).padding(.bottom, 8) }
             .toolbar {
                 if let compose {

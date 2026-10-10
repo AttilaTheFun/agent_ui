@@ -45,6 +45,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// The words last handed to the app, until the field sees whether the
     /// app cleared the draft for them (sent them) or kept it.
     @State private var handedOver: String?
+    /// What the field and the send button call, kept across passes.
+    @State private var actions = ComposerActions()
 
     /// - Parameters:
     ///   - busy: the agent is working; the send button becomes a stop button.
@@ -81,6 +83,17 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// what it would read here is the draft of its last redraw: the words
     /// come from the view that sent them, and whether the app took them
     /// is seen by the field, which reads the draft (`settle`).
+    /// The field's and the button's callbacks, set on this pass into the
+    /// instance kept across passes.
+    private var heldActions: ComposerActions {
+        actions.send = { words in fire(send, words: words) }
+        actions.steer = steer.map { steer in { words in fire(steer, words: words) } }
+        actions.stop = stop
+        actions.dictate = dictate
+        actions.settle = { cleared in settle(cleared: cleared) }
+        return actions
+    }
+
     private func fire(_ action: () -> Void, words: String) {
         handedOver = words
         action()
@@ -159,7 +172,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                 }
                 ComposerField(draft: $draft, placeholder: placeholder, sentWords: sentWords, sending: sending, focused: $focused,
                               generation: fieldGeneration, attachmentCount: attachmentCount, handedOver: handedOver != nil,
-                              submit: { fire(send, words: $0) }, settle: settle)
+                              actions: heldActions)
                 .padding(.horizontal, AgentComposerMetrics.inner)
                 .padding(.top, AgentComposerMetrics.inner)
                 .padding(.trailing, AgentComposerMetrics.gap)
@@ -181,8 +194,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     }
                     #endif
                     ComposerSendButton(draft: $draft, busy: busy, sending: sending, attachmentCount: attachmentCount,
-                                       send: { fire(send, words: $0) }, steer: steer.map { steer in { fire(steer, words: $0) } },
-                                       stop: stop, dictate: dictate, listening: listening)
+                                       actions: heldActions, canSteer: steer != nil, canDictate: dictate != nil, listening: listening)
                 }
             }
             .padding(.top, AgentComposerMetrics.gap)
