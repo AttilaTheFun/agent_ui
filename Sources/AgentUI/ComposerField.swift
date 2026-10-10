@@ -16,12 +16,12 @@ struct ComposerField: View {
     let attachmentCount: Int
     /// Words were handed to the app, and the draft has not changed since.
     let handedOver: Bool
-    /// Return, or the field's own submit, with something to send: the
-    /// words as this view has them. (The composer's own reading of the
-    /// draft is that of its last redraw, which typing does not cause.)
-    let submit: (String) -> Void
-    /// The draft changed after a hand-over: cleared, or kept.
-    let settle: (_ cleared: Bool) -> Void
+    /// Return, or the field's own submit, with something to send, sends
+    /// the words as this view has them (the composer's own reading of the
+    /// draft is that of its last redraw, which typing does not cause); a
+    /// change of the draft after a hand-over settles it. Held by the
+    /// composer across its passes.
+    let actions: ComposerActions
     /// Where the caret is, for a Shift-Return's newline.
     @State private var selection: DraftSelection?
 
@@ -29,7 +29,7 @@ struct ComposerField: View {
     private var sendingWords: String? { sending && draft.isEmpty ? sentWords : nil }
 
     private func submitIfAny() {
-        if !AgentText.isBlank(draft) || attachmentCount > 0 { submit(draft) }
+        if !AgentText.isBlank(draft) || attachmentCount > 0 { actions.send(draft) }
     }
 
     var body: some View {
@@ -57,6 +57,6 @@ struct ComposerField: View {
                 .returnSendsShiftReturnBreaks(draft: $draft, selection: $selection, send: submitIfAny)
         }
         .draftScroller(draft: draft, selection: selection)
-        .onChange(of: draft) { _, now in if handedOver { settle(now.isEmpty) } }
+        .onChange(of: draft) { _, now in if handedOver { actions.settle(now.isEmpty) } }
     }
 }

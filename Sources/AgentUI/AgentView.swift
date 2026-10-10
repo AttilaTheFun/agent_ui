@@ -76,6 +76,9 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// The composer's height, for the thread to keep its bottom above it.
     @State private var composerHeight: CGFloat = 0
     @State private var sendingEnds: Task<Void, Never>?
+    /// The call for earlier rows, held across passes for the thread: given
+    /// a closure, it would be evaluated again on each of this view's.
+    @State private var earlier = ViewAction()
 
     /// Sending, with the thread told first — in the same update as the
     /// draft clearing and the message going in.
@@ -94,15 +97,21 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     }
 
     public var body: some View {
-        TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
-                       emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote, loadEarlier: loadEarlier,
-                       sending: sendingNow, composerHeight: composerHeight)
+        earlier.run = loadEarlier ?? {}
+        return TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
+                              emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote,
+                              earlier: loadEarlier == nil ? nil : earlier, sending: sendingNow, composerHeight: composerHeight)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
                               sending: sending, suggestions: suggestions, pick: pick, dictation: dictation, controls: controls, attachments: attachments)
                     .background(GeometryReader { proxy in
-                        Color.clear.onChange(of: proxy.size.height, initial: true) { _, height in composerHeight = height }
+                        // Whole points, and only a real change: a measure
+                        // that differs by a fraction would write again and
+                        // lay the screen out once more for nothing.
+                        Color.clear.onChange(of: proxy.size.height.rounded(), initial: true) { _, height in
+                            if abs(height - composerHeight) >= 1 { composerHeight = height }
+                        }
                     })
             }
             .scrollDismissesKeyboard(.interactively)
