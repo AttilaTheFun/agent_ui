@@ -2,7 +2,8 @@ import SwiftUI
 
 /// A message's markdown, as SwiftUI text: paragraphs with inline styles
 /// (bold, italic, code, links), fenced code as a monospaced block, headings
-/// bold, bullet and numbered lines with their markers. Apple's SwiftUI has
+/// bold, bullet and numbered lines with their markers, quotes set off by a
+/// bar. Apple's SwiftUI has
 /// `AttributedString(markdown:)`; the portable one shows the text as is.
 public struct MarkdownText: View {
     let text: String
@@ -52,6 +53,18 @@ public struct MarkdownText: View {
             inline(lines)
         case .table(let header, let rows):
             MarkdownTable(header: header, rows: rows, inline: inline)
+        case .quote(let quoted):
+            // Its own markdown, in the secondary colour, beside a bar as
+            // tall as it is.
+            MarkdownText(quoted)
+                .foregroundColor(.secondary)
+                .padding(.leading, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Color.secondary.opacity(0.35))
+                        .frame(width: 3)
+                }
         }
     }
 

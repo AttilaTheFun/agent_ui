@@ -73,6 +73,9 @@ public struct TranscriptView: View {
     #endif
 
     static let bottom = "status"
+    /// The row standing for earlier rows: one height whether it spins or
+    /// not, as little as a small spinner needs (it is there in every thread).
+    static let earlierRowHeight: CGFloat = 24
 
     /// Rows are being put in at the end: the list keeps its top still.
     @State private var holdTop = false
@@ -190,17 +193,24 @@ public struct TranscriptView: View {
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
             List {
                 Group {
-                    if loadEarlier != nil, !shown.isEmpty {
+                    if !shown.isEmpty {
                         // The rows before these: coming into view asks for
-                        // them, and the row spins until they are in.
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .transcriptCell()
-                            .onAppear {
-                                earlierInView = true
-                                askEarlier()
-                            }
-                            .onDisappear { earlierInView = false }
+                        // them, and the row spins until they are in. Always
+                        // there, empty when there is nothing before, like
+                        // the status row: put in when the app learns there
+                        // are earlier rows (its first answer after a
+                        // launch, often the one to a send), it moved every
+                        // row under it down.
+                        ZStack {
+                            if loadEarlier != nil { ProgressView().controlSize(.small) }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: Self.earlierRowHeight)
+                        .onAppear {
+                            earlierInView = true
+                            askEarlier()
+                        }
+                        .onDisappear { earlierInView = false }
                     }
                     if shown.isEmpty { emptyState }
                     ForEach(TranscriptBlock.blocks(shown)) { block in
@@ -261,6 +271,8 @@ public struct TranscriptView: View {
                 }
             }
             .onChange(of: settling) { _, _ in askEarlier() }
+            // Earlier rows learned of while their row is already in view.
+            .onChange(of: loadEarlier != nil) { _, _ in askEarlier() }
             .onChange(of: shown.first?.id) { _, _ in askEarlier() }
             // The rows drawn are this view's copy of the app's, changed as
             // the app's change. Rows arriving at the end are put in below

@@ -37,6 +37,29 @@ final class MarkdownTests: XCTestCase {
     }
 }
 
+final class MarkdownQuoteTests: XCTestCase {
+    /// Lines that begin with ">" are one quote, without the marker; a line
+    /// without it ends the quote, and what is quoted is markdown again.
+    func testQuotes() {
+        let blocks = MarkdownBlocks.split("Before\n> first line\n>second line\n> - a point\n> > nested\nAfter")
+        XCTAssertEqual(blocks.count, 3)
+        if case .paragraph(let text) = blocks[0] { XCTAssertEqual(text, "Before") } else { XCTFail() }
+        guard case .quote(let quoted) = blocks[1] else { return XCTFail() }
+        XCTAssertEqual(quoted, "first line\nsecond line\n- a point\n> nested")
+        let inner = MarkdownBlocks.split(quoted)
+        XCTAssertEqual(inner.count, 3)
+        if case .list(let items) = inner[1] { XCTAssertEqual(items.map(\.text), ["a point"]) } else { XCTFail() }
+        if case .quote(let nested) = inner[2] { XCTAssertEqual(nested, "nested") } else { XCTFail() }
+        if case .paragraph(let text) = blocks[2] { XCTAssertEqual(text, "After") } else { XCTFail() }
+    }
+
+    /// A ">" inside fenced code is code.
+    func testAMarkerInCodeIsCode() {
+        let blocks = MarkdownBlocks.split("```\n> not a quote\n```")
+        if case .code(let code, _) = blocks.first { XCTAssertEqual(code, "> not a quote") } else { XCTFail() }
+    }
+}
+
 final class MarkdownTableTests: XCTestCase {
     func testTable() {
         let blocks = MarkdownBlocks.split("Before\n\n| A | B |\n|---|:--|\n| 1 | 2 |\n| 3 | 4 |\n\nAfter")

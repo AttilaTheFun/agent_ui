@@ -1,5 +1,6 @@
 enum MarkdownBlocks {
-    /// Splits markdown into blocks: fenced code, headings, lists, paragraphs.
+    /// Splits markdown into blocks: fenced code, headings, lists, quotes,
+    /// tables, paragraphs.
     static func split(_ text: String) -> [MarkdownBlock] {
         var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []
@@ -7,12 +8,16 @@ enum MarkdownBlocks {
         var code: [String]? = nil
         var language = ""
         var table: [[String]] = []
+        var quote: [String] = []
 
         func flushParagraph() {
             if !paragraph.isEmpty { blocks.append(.paragraph(paragraph.joined(separator: "\n"))); paragraph = [] }
         }
         func flushList() {
             if !list.isEmpty { blocks.append(.list(list.map { (marker: $0.0, text: $0.1) })); list = [] }
+        }
+        func flushQuote() {
+            if !quote.isEmpty { blocks.append(.quote(quote.joined(separator: "\n"))); quote = [] }
         }
         func flushTable() {
             // A header, a separator (|---|---|) and the rows; the separator is dropped.
@@ -38,11 +43,19 @@ enum MarkdownBlocks {
             }
             let trimmed = line.trimmingWhitespace()
             if trimmed.hasPrefix("```") {
-                flushParagraph(); flushList(); flushTable()
+                flushParagraph(); flushList(); flushTable(); flushQuote()
                 code = []
                 language = String(trimmed.dropFirst(3))
                 continue
             }
+            if trimmed.hasPrefix(">") {
+                flushParagraph(); flushList(); flushTable()
+                // The marker and the one space after it, if there is one.
+                let rest = trimmed.dropFirst()
+                quote.append(String(rest.first == " " ? rest.dropFirst() : rest))
+                continue
+            }
+            flushQuote()
             if trimmed.hasPrefix("|") {
                 flushParagraph(); flushList()
                 var inner = Substring(trimmed.dropFirst())
@@ -69,7 +82,7 @@ enum MarkdownBlocks {
             paragraph.append(line)
         }
         if let openCode = code { blocks.append(.code(openCode.joined(separator: "\n"), language: language)) }
-        flushParagraph(); flushList(); flushTable()
+        flushParagraph(); flushList(); flushTable(); flushQuote()
         return blocks
     }
 
