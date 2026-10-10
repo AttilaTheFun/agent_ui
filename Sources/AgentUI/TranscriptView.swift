@@ -108,6 +108,20 @@ public struct TranscriptView: View {
     @State private var keptAtTop: String?
     @State private var keptEnds: Task<Void, Never>?
 
+    /// The thread follows its end: rows that come in are scrolled to, and
+    /// the end stays in view as the keyboard or the composer change. Not
+    /// once the user has scrolled up to read: what they read stays where
+    /// it is and a pill says how many rows came in below. Following again
+    /// as soon as the end is in view, by their scroll or the pill's.
+    @State private var following = true
+    /// Rows that came in below while not following, for the pill (0: none).
+    @State private var unseen = 0
+    @State private var pillEnds: Task<Void, Never>?
+    /// How long the pill stays after the last rows it counts came in.
+    static let pillShown: UInt64 = 4_000_000_000
+    /// How near the end counts as at it: the status row, the last, in view.
+    static let endSlack: CGFloat = 60
+
     /// What ends the settling, and what lets go of the top after rows are
     /// put in: one of each at a time, so a second settling or a second
     /// arrival takes over from the first instead of being cut short by it.
@@ -188,6 +202,44 @@ public struct TranscriptView: View {
         return new.contains { $0.id == last.id }
     }
 
+    /// How many rows, as the thread draws them (a run of tool calls is
+    /// one), `new` has after the last of `old`'s: what the pill counts.
+    /// Earlier rows put in above are not new, and rows that replace all
+    /// the old are not counted.
+    static func newRows(in new: [TranscriptMessage], after old: [TranscriptMessage]) -> Int {
+        let had = Set(TranscriptBlock.blocks(old).map(\.id))
+        let blocks = TranscriptBlock.blocks(new)
+        guard let last = blocks.lastIndex(where: { had.contains($0.id) }) else { return 0 }
+        return blocks.count - last - 1
+    }
+
+    /// Where the list stands against its end, for following it: its offset,
+    /// and whether the end is in view.
+    struct EndState: Equatable {
+        var offset: CGFloat
+        var atEnd: Bool
+    }
+
+    /// Rows came in below while the thread is read further up: counted on
+    /// the pill, which goes a while after the last of them.
+    private func showPill(adding count: Int) {
+        guard count > 0 else { return }
+        withAnimation(.smooth(duration: 0.25)) { unseen += count }
+        pillEnds?.cancel()
+        pillEnds = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: Self.pillShown)
+            guard !Task.isCancelled else { return }
+            hidePill()
+        }
+    }
+
+    private func hidePill() {
+        pillEnds?.cancel()
+        pillEnds = nil
+        guard unseen > 0 else { return }
+        withAnimation(.smooth(duration: 0.25)) { unseen = 0 }
+    }
+
     public var body: some View {
         ScrollViewReader { proxy in
             let toBottom = { proxy.scrollTo(Self.bottom, anchor: .bottom) }
@@ -240,10 +292,37 @@ public struct TranscriptView: View {
             // A plain list's own edge is a hard band under the bar.
             .softTopEdge()
             .noMinimumRowHeight()
-            // The bottom stays put as the list or its rows change size.
-            .bottomAnchoredOnResize(!(holdTop || sending))
+            // The bottom stays put as the list or its rows change size —
+            // while following the end; read further up, what is read does.
+            .bottomAnchoredOnResize(following && !(holdTop || sending))
+            // Following the end, or not: the user going up stops it; the
+            // end coming into view, however it does, starts it again.
+            .onScrollGeometryChange(for: EndState.self) { geometry in
+                let seen = geometry.contentOffset.y + geometry.containerSize.height - geometry.contentInsets.bottom
+                return EndState(offset: geometry.contentOffset.y, atEnd: geometry.contentSize.height - seen <= Self.endSlack)
+            } action: { old, new in
+                if new.atEnd {
+                    following = true
+                    hidePill()
+                } else if new.offset < old.offset - 1 {
+                    following = false
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if unseen > 0 {
+                    NewRowsPill(count: unseen) {
+                        withAnimation(.smooth(duration: 0.35)) { toBottom() }
+                        hidePill()
+                    }
+                    .padding(.bottom, 10)
+                    .transition(.opacity)
+                }
+            }
             .onChange(of: sending) { _, now in
                 guard now else { return }
+                // What the user sends, they go down to, wherever they were.
+                following = true
+                hidePill()
                 // Whether or not a row goes in (a message that waits for
                 // the turn to end does not): the room the composer gave up
                 // is taken in one eased motion.
@@ -290,7 +369,17 @@ public struct TranscriptView: View {
                 // they go in with the thread kept at its bottom, not
                 // brought in from below.
                 let appended = Self.appends(new, to: shown) && !settling
-                if appended {
+                if !following, !settling {
+                    // Read further up: the rows go in below, what is read
+                    // stays still (the list holds its top), and the pill
+                    // counts them.
+                    let added = Self.newRows(in: new, after: shown)
+                    if earlierInView, Self.prepends(new, to: shown), let kept = Self.firstKept(of: shown, in: new) {
+                        keep(kept)
+                    }
+                    shown = new
+                    showPill(adding: added)
+                } else if appended {
                     holdTop = true
                     shown = new
                     // The scroll once the list has the rows and the box its
@@ -341,8 +430,9 @@ public struct TranscriptView: View {
             // there while the keyboard is still on its way.
             // While rows arrive, their own scroll takes the thread to the
             // bottom: a second scroll in the middle of it (the composer
-            // shrinking as the words sent leave it) fought it.
-            .onVisibleHeightChange { if !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
+            // shrinking as the words sent leave it) fought it. Only while
+            // following: read further up, the thread stays where it is.
+            .onVisibleHeightChange { if following && !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
             // On a Mac the composer bar's growth reaches the list as an
             // inset its scroll geometry does not report, so the change
             // above never fired and the last rows went under the box: the
@@ -350,7 +440,7 @@ public struct TranscriptView: View {
             // scrolled once the new inset has landed — at once, as the box
             // pushes it, not eased.
             .onComposerHeightChange(composerHeight) {
-                guard !holdTop && !sending else { return }
+                guard following && !holdTop && !sending else { return }
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 30_000_000)
                     toBottom()

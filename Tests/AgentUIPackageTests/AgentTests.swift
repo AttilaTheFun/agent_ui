@@ -25,6 +25,29 @@ final class AgentTests: XCTestCase {
     }
 }
 
+final class NewRowsTests: XCTestCase {
+    private func row(_ id: String, _ role: TranscriptMessage.Role = .assistant, calls: [String] = []) -> TranscriptMessage {
+        TranscriptMessage(id: id, role: role, text: calls.isEmpty ? id : "", activities: calls)
+    }
+
+    /// The pill counts rows after the last there was, as drawn: a run of
+    /// tool calls is one row, and a call joining the run is none.
+    func testRowsAfterTheLastAreCounted() {
+        let old = [row("a", .user), row("b")]
+        XCTAssertEqual(TranscriptView.newRows(in: old + [row("c", calls: ["Bash: ls"]), row("d", calls: ["Bash: pwd"]), row("e")], after: old), 2)
+        let withRun = old + [row("c", calls: ["Bash: ls"])]
+        XCTAssertEqual(TranscriptView.newRows(in: withRun + [row("d", calls: ["Bash: pwd"])], after: withRun), 0)
+    }
+
+    /// Earlier rows put in above are not new; rows that replace all the
+    /// old are not counted.
+    func testEarlierOrReplacedRowsAreNotCounted() {
+        let old = [row("c"), row("d")]
+        XCTAssertEqual(TranscriptView.newRows(in: [row("a"), row("b")] + old, after: old), 0)
+        XCTAssertEqual(TranscriptView.newRows(in: [row("x"), row("y")], after: old), 0)
+    }
+}
+
 final class MarkdownTests: XCTestCase {
     func testBlocks() {
         let blocks = MarkdownBlocks.split("# Title\n\nSome *text* here\nmore\n\n- one\n- two\n\n```swift\nlet x = 1\n```\n1. first\n2. second")
