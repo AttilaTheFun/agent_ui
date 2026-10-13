@@ -15,7 +15,9 @@ public struct TranscriptRow: View {
                         ImageStrip(urls: message.imageURLs, sizes: message.imageSizes, alignment: .trailing)
                     }
                     if !message.text.isEmpty {
-                        Text(message.text)
+                        // The same markdown as the agent's: a list said
+                        // here is a list.
+                        MarkdownText(message.text)
                             .padding(.horizontal, 14).padding(.vertical, 10)
                             .background(Color.secondary.opacity(0.18))
                             .cornerRadius(16)
