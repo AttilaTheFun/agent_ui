@@ -11,14 +11,4 @@ extension View {
             self
         }
     }
-
-    /// The hard scroll edge: a band under the bar, with a line where it
-    /// ends. A list of conversations', as Messages has it.
-    @ViewBuilder func hardTopEdge() -> some View {
-        if #available(iOS 26, macOS 26, *) {
-            scrollEdgeEffectStyle(.hard, for: .top)
-        } else {
-            self
-        }
-    }
 }

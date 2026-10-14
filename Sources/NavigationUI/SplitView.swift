@@ -50,10 +50,12 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
     private var hasInspector: Bool { !(inspector is EmptyView) }
 
     private var split: some View {
-        // Messages' edges under the bars: the list of conversations a hard
-        // band, the conversation a soft fade.
+        // Messages' edges under the bars: the list of conversations the
+        // system's own (on iOS 26 and later a hard band once its title has
+        // gone into the bar, nothing while it is large; asked for as hard,
+        // the band's line shows at rest too), the conversation a soft fade.
         NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
-            sidebar.hardTopEdge()
+            sidebar
         } detail: {
             // The column as it is: SwiftUI gives a detail its own bar
             // (a stack around it would strip it on a collapsed phone).
