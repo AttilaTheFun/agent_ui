@@ -175,8 +175,26 @@ public struct TranscriptView: View {
     /// still in view (a short page).
     private func askEarlier() {
         guard stage.earlierInView, !stage.settling, let loadEarlier else { return }
+        // A page still going in, or one asked for a moment ago: asked again
+        // once it has settled, if the row is still in view then.
+        let now = ContinuousClock.now
+        let since = stage.earlierAsked.map { now - $0 } ?? .seconds(60)
+        if stage.keptAtTop != nil || since < Self.earlierBreath {
+            stage.earlierLater?.cancel()
+            let wait = max(Self.earlierBreath - since, .milliseconds(150))
+            stage.earlierLater = Task { @MainActor in
+                try? await Task.sleep(for: wait)
+                guard !Task.isCancelled else { return }
+                askEarlier()
+            }
+            return
+        }
+        stage.earlierAsked = now
         loadEarlier.run()
     }
+
+    /// The least time between two pages of earlier rows.
+    static let earlierBreath: Duration = .milliseconds(600)
 
     /// Whether `new` is `old` with rows put in before its first.
     static func prepends(_ new: [TranscriptMessage], to old: [TranscriptMessage]) -> Bool {

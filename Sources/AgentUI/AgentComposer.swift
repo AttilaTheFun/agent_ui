@@ -39,6 +39,8 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
     @State private var fieldGeneration = 0
+    /// Counts suggestions picked: the field puts its caret after each.
+    @State private var picked = 0
     /// The words just sent, shown in the box, faint, while they are on
     /// their way.
     @State private var sentWords: String?
@@ -161,7 +163,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
             // to the message (`controlsRoom`), so the send button can take
             // taps in it.
             VStack(alignment: .leading, spacing: 0) {
-                ComposerSuggestions(draft: $draft, suggest: suggest, pick: pick)
+                ComposerSuggestions(draft: $draft, suggest: suggest, pick: { suggestion in
+                    pick(suggestion)
+                    picked += 1
+                })
                 if attachmentCount > 0 {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AgentComposerMetrics.gap) { attachments }
@@ -172,7 +177,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                 }
                 ComposerField(draft: $draft, placeholder: placeholder, sentWords: sentWords, sending: sending, focused: $focused,
                               generation: fieldGeneration, attachmentCount: attachmentCount, handedOver: handedOver != nil,
-                              actions: heldActions)
+                              actions: heldActions, picked: picked)
                 .padding(.horizontal, AgentComposerMetrics.inner)
                 .padding(.top, AgentComposerMetrics.inner)
                 .padding(.trailing, AgentComposerMetrics.gap)
