@@ -35,11 +35,7 @@ struct ComposerField: View {
     /// the field (the next turn of the main actor), so the field does not
     /// put it back where it was in the words before.
     private func caretToEnd() {
-        Task { @MainActor in
-            #if canImport(AppKit) || canImport(UIKit)
-            selection = TextSelection(insertionPoint: draft.endIndex)
-            #endif
-        }
+        Task { @MainActor in selection = TextSelection(insertionPoint: draft.endIndex) }
     }
 
     private func submitIfAny() {
