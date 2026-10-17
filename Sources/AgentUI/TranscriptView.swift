@@ -116,8 +116,9 @@ public struct TranscriptView: View {
     @State private var following = true
     /// Rows that came in below while not following, for the pill (0: none).
     @State private var unseen = 0
-    /// How long the pill stays after the last rows it counts came in.
-    static let pillShown: UInt64 = 4_000_000_000
+    /// How long the pill stays after the last rows it counts came in
+    /// (`EnvironmentValues.newRowsPillSeconds`).
+    @Environment(\.newRowsPillSeconds) private var pillSeconds
     /// How near the end counts as at it: the status row, the last, in view.
     static let endSlack: CGFloat = 60
 
@@ -241,7 +242,7 @@ public struct TranscriptView: View {
         withAnimation(.smooth(duration: 0.25)) { unseen += count }
         stage.pillEnds?.cancel()
         stage.pillEnds = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: Self.pillShown)
+            try? await Task.sleep(nanoseconds: UInt64(max(0, pillSeconds) * 1_000_000_000))
             guard !Task.isCancelled else { return }
             hidePill()
         }

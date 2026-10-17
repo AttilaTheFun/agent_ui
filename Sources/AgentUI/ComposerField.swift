@@ -38,6 +38,11 @@ struct ComposerField: View {
         Task { @MainActor in selection = TextSelection(insertionPoint: draft.endIndex) }
     }
 
+    /// The caret as the field is given it: only where it lies in the draft.
+    private var caret: Binding<DraftSelection?> {
+        Binding(get: { selection.flatMap { $0.lies(in: draft) ? $0 : nil } }, set: { selection = $0 })
+    }
+
     private func submitIfAny() {
         if !AgentText.isBlank(draft) || attachmentCount > 0 { actions.send(draft) }
     }
@@ -53,7 +58,7 @@ struct ComposerField: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .allowsHitTesting(false)
             }
-            DraftField(placeholder: sendingWords == nil ? placeholder : "", draft: $draft, selection: $selection)
+            DraftField(placeholder: sendingWords == nil ? placeholder : "", draft: $draft, selection: caret)
                 .textFieldStyle(.plain)
                 .draftLineLimit()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -64,7 +69,7 @@ struct ComposerField: View {
                 // read (a Mac, a hardware keyboard on a phone), both are
                 // decided here and the field sees neither; elsewhere the
                 // submit above is what sends.
-                .returnSendsShiftReturnBreaks(draft: $draft, selection: $selection, send: submitIfAny)
+                .returnSendsShiftReturnBreaks(draft: $draft, selection: caret, send: submitIfAny)
         }
         .draftScroller(draft: draft, selection: selection)
         .onChange(of: draft) { _, now in if handedOver { actions.settle(now.isEmpty) } }
