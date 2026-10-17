@@ -22,11 +22,21 @@ struct ComposerField: View {
     /// change of the draft after a hand-over settles it. Held by the
     /// composer across its passes.
     let actions: ComposerActions
+    /// Counts suggestions picked: each puts the caret after the words, past
+    /// the command it finished (not where the caret was in what was typed).
+    var picked = 0
     /// Where the caret is, for a Shift-Return's newline.
     @State private var selection: DraftSelection?
 
     /// The words on their way, while there is nothing new written.
     private var sendingWords: String? { sending && draft.isEmpty ? sentWords : nil }
+
+    /// The caret after the last of the words: once the picked words are in
+    /// the field (the next turn of the main actor), so the field does not
+    /// put it back where it was in the words before.
+    private func caretToEnd() {
+        Task { @MainActor in selection = TextSelection(insertionPoint: draft.endIndex) }
+    }
 
     private func submitIfAny() {
         if !AgentText.isBlank(draft) || attachmentCount > 0 { actions.send(draft) }
@@ -58,5 +68,6 @@ struct ComposerField: View {
         }
         .draftScroller(draft: draft, selection: selection)
         .onChange(of: draft) { _, now in if handedOver { actions.settle(now.isEmpty) } }
+        .onChange(of: picked) { _, _ in caretToEnd() }
     }
 }

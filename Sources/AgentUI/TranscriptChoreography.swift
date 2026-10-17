@@ -18,6 +18,13 @@ final class TranscriptChoreography {
     /// it: a list at its top would otherwise stay there and show the page's
     /// first row. Let go once the page has settled.
     var keptAtTop: String?
+    /// When earlier rows were last asked for, and the ask put off until a
+    /// page going in has settled: one page at a time, each laid out before
+    /// the next is asked for, however slowly the host lays out (an
+    /// interpreted one took long enough that the row asking for more stayed
+    /// in view, and asked, and asked again).
+    var earlierAsked: ContinuousClock.Instant?
+    var earlierLater: Task<Void, Never>?
 
     /// What ends each: one of each at a time, so a second settling or a
     /// second arrival takes over from the first instead of being cut short
