@@ -26,7 +26,7 @@ struct ComposerField: View {
     /// the command it finished (not where the caret was in what was typed).
     var picked = 0
     /// Where the caret is, for a Shift-Return's newline.
-    @State private var selection: DraftSelection?
+    @State private var placed: DraftCaret?
 
     /// The words on their way, while there is nothing new written.
     private var sendingWords: String? { sending && draft.isEmpty ? sentWords : nil }
@@ -35,12 +35,14 @@ struct ComposerField: View {
     /// the field (the next turn of the main actor), so the field does not
     /// put it back where it was in the words before.
     private func caretToEnd() {
-        Task { @MainActor in selection = TextSelection(insertionPoint: draft.endIndex) }
+        Task { @MainActor in placed = DraftCaret(selection: TextSelection(insertionPoint: draft.endIndex), text: draft) }
     }
 
-    /// The caret as the field is given it: only where it lies in the draft.
+    /// The caret as the field is given it: only in the words it was given
+    /// for. A caret set is kept with the draft as it is then; the field
+    /// changes the draft first and says where its caret is after.
     private var caret: Binding<DraftSelection?> {
-        Binding(get: { selection.flatMap { $0.lies(in: draft) ? $0 : nil } }, set: { selection = $0 })
+        Binding(get: { placed?.selection(in: draft) }, set: { placed = $0.map { DraftCaret(selection: $0, text: draft) } })
     }
 
     private func submitIfAny() {
@@ -71,7 +73,7 @@ struct ComposerField: View {
                 // submit above is what sends.
                 .returnSendsShiftReturnBreaks(draft: $draft, selection: caret, send: submitIfAny)
         }
-        .draftScroller(draft: draft, selection: selection)
+        .draftScroller(draft: draft, selection: placed?.selection(in: draft))
         .onChange(of: draft) { _, now in if handedOver { actions.settle(now.isEmpty) } }
         .onChange(of: picked) { _, _ in caretToEnd() }
     }

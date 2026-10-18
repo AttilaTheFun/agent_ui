@@ -125,3 +125,15 @@ final class DraftEditTests: XCTestCase {
         XCTAssertEqual(edit.caret, 6)
     }
 }
+
+final class DraftCaretTests: XCTestCase {
+    /// The caret the field gave for the words before a correction is not
+    /// handed back with the corrected words, where it would be a letter
+    /// short of the end.
+    func testACaretIsOnlyForTheWordsItWasGivenFor() {
+        let typed = "i dont "
+        let caret = DraftCaret(selection: DraftSelection(insertionPoint: typed.endIndex), text: typed)
+        XCTAssertEqual(caret.selection(in: typed), DraftSelection(insertionPoint: typed.endIndex))
+        XCTAssertNil(caret.selection(in: "i don\u{2019}t "))
+    }
+}
