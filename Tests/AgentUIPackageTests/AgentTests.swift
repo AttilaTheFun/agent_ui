@@ -136,4 +136,17 @@ final class DraftCaretTests: XCTestCase {
         XCTAssertEqual(caret.selection(in: typed), DraftSelection(insertionPoint: typed.endIndex))
         XCTAssertNil(caret.selection(in: "i don\u{2019}t "))
     }
+
+    /// A Mac's field says where its caret went before the letter typed
+    /// there: the caret came with the words before the letter, and a
+    /// Shift-Return then still goes in at it, not at the end.
+    func testANewlineGoesAtTheCaretTheFieldSaidBeforeItsWords() {
+        let before = "first second"
+        let after = "first, second"
+        let caretAfterComma = after.index(after.startIndex, offsetBy: 6)
+        let caret = DraftCaret(selection: DraftSelection(insertionPoint: caretAfterComma), text: before)
+        XCTAssertNil(caret.selection(in: after), "not handed back to the field with other words")
+        guard case .selection(let range)? = caret.newlineSelection(in: after)?.indices else { return XCTFail("no caret for the newline") }
+        XCTAssertEqual(DraftEdit.newline(in: after, replacing: range).text, "first,\n second")
+    }
 }

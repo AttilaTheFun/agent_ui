@@ -45,6 +45,12 @@ struct ComposerField: View {
         Binding(get: { placed?.selection(in: draft) }, set: { placed = $0.map { DraftCaret(selection: $0, text: draft) } })
     }
 
+    /// The caret a Shift-Return's newline goes in at: the field's last,
+    /// wherever it lies in the draft (DraftCaret.newlineSelection).
+    private var newlineCaret: Binding<DraftSelection?> {
+        Binding(get: { placed?.newlineSelection(in: draft) }, set: { placed = $0.map { DraftCaret(selection: $0, text: draft) } })
+    }
+
     private func submitIfAny() {
         if !AgentText.isBlank(draft) || attachmentCount > 0 { actions.send(draft) }
     }
@@ -71,7 +77,7 @@ struct ComposerField: View {
                 // read (a Mac, a hardware keyboard on a phone), both are
                 // decided here and the field sees neither; elsewhere the
                 // submit above is what sends.
-                .returnSendsShiftReturnBreaks(draft: $draft, selection: caret, send: submitIfAny)
+                .returnSendsShiftReturnBreaks(draft: $draft, selection: newlineCaret, send: submitIfAny)
         }
         .draftScroller(draft: draft, selection: placed?.selection(in: draft))
         .onChange(of: draft) { _, now in if handedOver { actions.settle(now.isEmpty) } }
