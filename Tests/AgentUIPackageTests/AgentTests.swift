@@ -1,3 +1,5 @@
+import Foundation
+import SwiftUI
 import XCTest
 @testable import AgentUI
 
@@ -104,17 +106,13 @@ final class InlineMarkdownTests: XCTestCase {
 
 final class DraftEditTests: XCTestCase {
     func testANewlineGoesInAtTheCaret() {
-        let text = "first second"
-        let caret = text.index(text.startIndex, offsetBy: 5)
-        let edit = DraftEdit.newline(in: text, replacing: caret..<caret)
+        let edit = DraftEdit.newline(in: "first second", replacing: (5, 5))
         XCTAssertEqual(edit.text, "first\n second")
         XCTAssertEqual(edit.caret, 6)
     }
 
     func testANewlineReplacesWhatIsSelected() {
-        let text = "first second"
-        let range = text.index(text.startIndex, offsetBy: 5)..<text.index(text.startIndex, offsetBy: 6)
-        let edit = DraftEdit.newline(in: text, replacing: range)
+        let edit = DraftEdit.newline(in: "first second", replacing: (5, 6))
         XCTAssertEqual(edit.text, "first\nsecond")
         XCTAssertEqual(edit.caret, 6)
     }
@@ -124,29 +122,68 @@ final class DraftEditTests: XCTestCase {
         XCTAssertEqual(edit.text, "words\n")
         XCTAssertEqual(edit.caret, 6)
     }
+
+    /// Offsets are UTF-16, as a field's are: after an em dash and an emoji
+    /// the newline still goes where the caret is.
+    func testANewlineAfterWordsBeyondASCII() {
+        let text = "a \u{2014} \u{1F600} b"
+        let caret = ("a \u{2014} \u{1F600}" as String).utf16.count
+        let edit = DraftEdit.newline(in: text, replacing: (caret, caret))
+        XCTAssertEqual(edit.text, "a \u{2014} \u{1F600}\n b")
+        XCTAssertEqual(edit.caret, caret + 1)
+    }
+
+    /// A caret inside an emoji (between its two UTF-16 halves) is moved
+    /// back to its start, not split.
+    func testACaretInsideACharacterGoesBackToItsStart() {
+        let text = "x\u{1F600}y"
+        let edit = DraftEdit.newline(in: text, replacing: (2, 2))
+        XCTAssertEqual(edit.text, "x\n\u{1F600}y")
+    }
 }
 
+@MainActor
 final class DraftCaretTests: XCTestCase {
     /// The caret the field gave for the words before a correction is not
     /// handed back with the corrected words, where it would be a letter
     /// short of the end.
     func testACaretIsOnlyForTheWordsItWasGivenFor() {
         let typed = "i dont "
-        let caret = DraftCaret(selection: DraftSelection(insertionPoint: typed.endIndex), text: typed)
+        let caret = DraftCaret.end(of: typed)
         XCTAssertEqual(caret.selection(in: typed), DraftSelection(insertionPoint: typed.endIndex))
         XCTAssertNil(caret.selection(in: "i don\u{2019}t "))
     }
 
-    /// A Mac's field says where its caret went before the letter typed
-    /// there: the caret came with the words before the letter, and a
-    /// Shift-Return then still goes in at it, not at the end.
-    func testANewlineGoesAtTheCaretTheFieldSaidBeforeItsWords() {
-        let before = "first second"
-        let after = "first, second"
-        let caretAfterComma = after.index(after.startIndex, offsetBy: 6)
-        let caret = DraftCaret(selection: DraftSelection(insertionPoint: caretAfterComma), text: before)
-        XCTAssertNil(caret.selection(in: after), "not handed back to the field with other words")
-        guard case .selection(let range)? = caret.newlineSelection(in: after)?.indices else { return XCTFail("no caret for the newline") }
-        XCTAssertEqual(DraftEdit.newline(in: after, replacing: range).text, "first,\n second")
+    /// A caret the field said before its words (a Mac's, as a key is
+    /// typed) is given back to the field only once it has its words, and is
+    /// the newline's caret meanwhile.
+    func testACaretWithoutItsWordsYetIsTheNewlinesButNotTheFields() {
+        let caret = DraftCaret(lower: 6, upper: 6, text: nil)
+        XCTAssertNil(caret.selection(in: "first, second"))
+        XCTAssertEqual(caret.range(in: "first, second")?.lower, 6)
+    }
+
+    /// The field's index, read in the words it is in, as a UTF-16 offset:
+    /// a Mac's field's (UTF-16) and a Swift string's (UTF-8) alike.
+    func testAFieldsIndexIsReadInItsWords() {
+        let accents = String(repeating: "\u{00E9}", count: 9000)
+        // Foundation's own words, as a field has them: UTF-16 indices.
+        let bridged = NSString(characters: Array(accents.utf16), length: accents.utf16.count) as String
+        let utf16Index = bridged.utf16.index(bridged.utf16.startIndex, offsetBy: 8500)
+        XCTAssertTrue(utf16Index.debugDescription.hasSuffix("[utf16]"), utf16Index.debugDescription)
+        XCTAssertEqual(DraftCaret.reported(DraftSelection(insertionPoint: utf16Index), in: accents)?.lower, 8500)
+        let utf8Index = accents.index(accents.startIndex, offsetBy: 8500)
+        XCTAssertEqual(DraftCaret.reported(DraftSelection(insertionPoint: utf8Index), in: accents)?.lower, 8500)
+    }
+
+    /// A caret past the end of the words it is read in (the field's, for
+    /// longer words than the draft has) is none, and does not trap — as it
+    /// did, reading a Mac's caret against the draft from before the letter
+    /// typed.
+    func testACaretPastTheWordsIsNoneAndDoesNotTrap() {
+        let words = "\u{2014} and on and on"
+        let longer = NSString(characters: Array(words.utf16), length: words.utf16.count) as String
+        let end = longer.utf16.index(longer.utf16.startIndex, offsetBy: longer.utf16.count)
+        XCTAssertNil(DraftCaret.reported(DraftSelection(insertionPoint: end), in: "\u{2014} and"))
     }
 }
