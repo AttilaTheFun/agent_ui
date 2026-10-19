@@ -8,13 +8,16 @@ public struct TranscriptRow: View {
     public var body: some View {
         switch message.role {
         case .user:
-            HStack {
-                Spacer(minLength: 60)
-                VStack(alignment: .trailing, spacing: 6) {
-                    if !message.imageURLs.isEmpty {
-                        ImageStrip(urls: message.imageURLs, sizes: message.imageSizes, alignment: .trailing)
-                    }
-                    if !message.text.isEmpty {
+            VStack(alignment: .trailing, spacing: 6) {
+                // As wide as the thread, so a carousel of them scrolls to
+                // its edges rather than being cut off at the words'.
+                if !message.imageURLs.isEmpty {
+                    ImageStrip(urls: message.imageURLs, sizes: message.imageSizes, alignment: .trailing,
+                               inset: TranscriptMetrics.edgeInset)
+                }
+                if !message.text.isEmpty {
+                    HStack {
+                        Spacer(minLength: 60)
                         // The same markdown as the agent's: a list said
                         // here is a list.
                         MarkdownText(message.text)
@@ -23,9 +26,9 @@ public struct TranscriptRow: View {
                             .cornerRadius(16)
                             .textSelection(.enabled)
                     }
+                    .padding(.horizontal, TranscriptMetrics.edgeInset)
                 }
             }
-            .padding(.horizontal, TranscriptMetrics.edgeInset)
         case .assistant:
             VStack(alignment: .leading, spacing: 6) {
                 if !message.text.isEmpty { AssistantBubble(text: message.text) }
@@ -44,8 +47,7 @@ public struct TranscriptRow: View {
         // the interesting part of the row. It sits left, with the rest of
         // what the agent says.
         if !message.imageURLs.isEmpty {
-            ImageStrip(urls: message.imageURLs, sizes: message.imageSizes, alignment: .leading)
-                .padding(.horizontal, TranscriptMetrics.edgeInset)
+            ImageStrip(urls: message.imageURLs, sizes: message.imageSizes, alignment: .leading, inset: TranscriptMetrics.edgeInset)
         }
         switch message.toolName {
         case "goal", "goal-met":

@@ -60,6 +60,20 @@ final class LayoutRegressionTests: XCTestCase {
         XCTAssertLessThanOrEqual(width(2), 300.5)
     }
 
+    /// Your message's carousel is as wide as the thread, not cut off at
+    /// the margin your words keep on the left: its pictures scroll to the
+    /// screen's edge.
+    func testYourCarouselIsAsWideAsTheThread() {
+        let urls = (0..<4).map { "https://example.invalid/image-\($0).png" }
+        let message = TranscriptMessage(id: "m", role: .user, text: "Four screenshots",
+                                        imageURLs: urls, imageSizes: Array(repeating: CGSize(width: 1179, height: 2556), count: 4))
+        let row = TranscriptRow(message: message)
+        let renderer = ImageRenderer(content: row)
+        renderer.proposedSize = ProposedViewSize(width: 300, height: nil)
+        let width = renderer.cgImage.map { CGFloat($0.width) / renderer.scale } ?? 0
+        XCTAssertEqual(width, 300, accuracy: 0.5, "the row takes the thread's width, and no more")
+    }
+
     /// The send button's target is the circle and the room around it: taps
     /// beside the circle land on it.
     func testTheSendTargetIsLargerThanItsCircle() {

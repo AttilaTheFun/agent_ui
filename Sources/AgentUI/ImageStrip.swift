@@ -4,18 +4,24 @@ import SwiftUI
 /// video, a file), on the side its message is on: yours right, the
 /// agent's left; a carousel, scrolled sideways, when they are wider than
 /// the message (four screenshots ran off a phone, and took the message's
-/// words with them). Tap one to see it whole; it spins while its bytes are
+/// words with them). The carousel is as wide as the thread, its pictures
+/// scrolling to the screen's edges, the message's margin (`inset`) only
+/// at its ends. Tap one to see it whole; it spins while its bytes are
 /// fetched for that.
 public struct ImageStrip: View {
     let urls: [String]
     let sizes: [CGSize?]
     let alignment: HorizontalAlignment
+    /// The margin between the thread's edges and the pictures: inside
+    /// the carousel's scrolling, so it does not cut them off.
+    let inset: CGFloat
     @Environment(\.openedTranscriptImage) private var opened
 
-    public init(urls: [String], sizes: [CGSize?] = [], alignment: HorizontalAlignment = .leading) {
+    public init(urls: [String], sizes: [CGSize?] = [], alignment: HorizontalAlignment = .leading, inset: CGFloat = 0) {
         self.urls = urls
         self.sizes = sizes
         self.alignment = alignment
+        self.inset = inset
     }
 
     /// The frame a picture takes before it has arrived, when its size is
@@ -28,8 +34,8 @@ public struct ImageStrip: View {
     public var body: some View {
         if !urls.isEmpty {
             ViewThatFits(in: .horizontal) {
-                thumbnails
-                ScrollView(.horizontal, showsIndicators: false) { thumbnails }
+                thumbnails.padding(.horizontal, inset)
+                ScrollView(.horizontal, showsIndicators: false) { thumbnails.padding(.horizontal, inset) }
             }
             // As wide as the message, the pictures on its side when they
             // fit.
