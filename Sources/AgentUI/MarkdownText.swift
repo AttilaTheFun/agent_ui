@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// A message's markdown, as SwiftUI text: paragraphs with inline styles
-/// (bold, italic, code, links), fenced code as a monospaced block, headings
+/// (bold, italic, code, links), fenced code as a monospaced block that
+/// wraps (a long line, a code or a key, read and selected whole), headings
 /// bold, bullet and numbered lines with their markers, quotes set off by a
 /// bar. Apple's SwiftUI has
 /// `AttributedString(markdown:)`; the portable one shows the text as is.
@@ -24,14 +25,16 @@ public struct MarkdownText: View {
     @ViewBuilder private func blockView(_ block: MarkdownBlock) -> some View {
         switch block {
         case .code(let code, _):
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(code)
-                    .font(.footnote.monospaced())
-                    .textSelection(.enabled)
-                    .padding(10)
-            }
-            .background(Color.secondary.opacity(0.12))
-            .cornerRadius(8)
+            // Wrapped, not scrolled sideways: a long line beyond the
+            // screen was hard to read and to select on a phone.
+            Text(code)
+                .font(.footnote.monospaced())
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.secondary.opacity(0.12))
+                .cornerRadius(8)
         case .heading(let level, let line):
             inline(line)
                 .font(level <= 1 ? .title3.bold() : (level == 2 ? .headline : .subheadline.bold()))

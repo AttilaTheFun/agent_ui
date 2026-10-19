@@ -32,6 +32,17 @@ final class LayoutRegressionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(item, paragraph - 1, "the item takes them all, offered one line")
     }
 
+    /// A code block's line longer than the width wraps within it (a
+    /// connection code is one long word), rather than running off the side
+    /// to be scrolled to.
+    func testACodeBlockWraps() {
+        let code = String(repeating: "eyJhZGRyZXNzZXMiOlsiaHR0cHM6", count: 12)
+        let block = size(of: MarkdownText("```\n" + code + "\n```"), width: 300)
+        let oneLine = size(of: MarkdownText("```\nshort\n```"), width: 300).height
+        XCTAssertLessThanOrEqual(block.width, 300.5, "the block stays within the width")
+        XCTAssertGreaterThan(block.height, oneLine * 3, "the line wraps onto several")
+    }
+
     /// The send button's target is the circle and the room around it: taps
     /// beside the circle land on it.
     func testTheSendTargetIsLargerThanItsCircle() {
