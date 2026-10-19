@@ -9,7 +9,10 @@ extension View {
         if compact {
             sheet(isPresented: isPresented, content: pane)
         } else {
-            inspector(isPresented: isPresented, content: pane)
+            // A width of its own: SwiftUI's default came out a few points
+            // different from one launch to the next (the Mac's pictures of
+            // the same screen differed).
+            inspector(isPresented: isPresented) { pane().inspectorColumnWidth(min: 260, ideal: 300, max: 420) }
         }
     }
 }
