@@ -25,9 +25,11 @@ struct ComposerSuggestions: View {
             .popover(isPresented: Binding(get: { !suggestions.isEmpty && dismissed != draft },
                                           set: { if !$0 { dismissed = draft } }),
                      attachmentAnchor: .point(.top), arrowEdge: .bottom) {
+                // Clear of the popover's rounded corners.
                 SuggestionList(suggestions: suggestions, pick: pick)
-                    .padding(.vertical, 4)
-                    .frame(width: 320)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 6)
+                    .frame(width: 332)
                     .presentationCompactAdaptation(.popover)
             }
         #else
