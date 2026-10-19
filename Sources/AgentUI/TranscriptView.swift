@@ -116,8 +116,9 @@ public struct TranscriptView: View {
     @State private var following = true
     /// Rows that came in below while not following, for the pill (0: none).
     @State private var unseen = 0
-    /// How long the pill stays after the last rows it counts came in.
-    static let pillShown: UInt64 = 4_000_000_000
+    /// How long the pill stays after the last rows it counts came in
+    /// (`EnvironmentValues.newRowsPillSeconds`).
+    @Environment(\.newRowsPillSeconds) private var pillSeconds
     /// How near the end counts as at it: the status row, the last, in view.
     static let endSlack: CGFloat = 60
 
@@ -241,7 +242,7 @@ public struct TranscriptView: View {
         withAnimation(.smooth(duration: 0.25)) { unseen += count }
         stage.pillEnds?.cancel()
         stage.pillEnds = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: Self.pillShown)
+            try? await Task.sleep(nanoseconds: UInt64(max(0, pillSeconds) * 1_000_000_000))
             guard !Task.isCancelled else { return }
             hidePill()
         }
@@ -339,7 +340,10 @@ public struct TranscriptView: View {
             if new.atEnd {
                 if !following { following = true }
                 hidePill()
-            } else if new.offset < old.offset - 1, following {
+            } else if new.offset < old.offset - 1, following, !stage.settling, !holdTop {
+                // Gone up — by the user, not by the list laying out what
+                // the thread is settling on or bringing in (rows measured,
+                // or taken off the top as a catch-up replaces them).
                 following = false
             }
         }
@@ -439,6 +443,9 @@ public struct TranscriptView: View {
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 guard !Task.isCancelled else { return }
                 holdTop = false
+                // Rows measured taller than the list guessed while the top
+                // was held: the end went further down than the scroll did.
+                if following { toBottom() }
             }
         } else {
             let first = shown.isEmpty
@@ -463,10 +470,12 @@ public struct TranscriptView: View {
                 }
             }
             // The first rows of a thread opened before they had
-            // come: the list's first scroll measures rows it has
-            // only estimated and stops short, so it goes again as
-            // they are laid out.
-            if first, !new.isEmpty { settle(toBottom) }
+            // come — or the end moved by more than an arrival (a thread
+            // taken up again, caught up with what came while it was let
+            // go of): the list's scroll measures rows it has only
+            // estimated and stops short, so it goes again as they are
+            // laid out.
+            if !new.isEmpty, first || (moved && following) { settle(toBottom) }
         }
     }
 

@@ -32,6 +32,48 @@ final class LayoutRegressionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(item, paragraph - 1, "the item takes them all, offered one line")
     }
 
+    /// A code block's line longer than the width wraps within it (a
+    /// connection code is one long word), rather than running off the side
+    /// to be scrolled to.
+    func testACodeBlockWraps() {
+        let code = String(repeating: "eyJhZGRyZXNzZXMiOlsiaHR0cHM6", count: 12)
+        let block = size(of: MarkdownText("```\n" + code + "\n```"), width: 300)
+        let oneLine = size(of: MarkdownText("```\nshort\n```"), width: 300).height
+        XCTAssertLessThanOrEqual(block.width, 300.5, "the block stays within the width")
+        XCTAssertGreaterThan(block.height, oneLine * 3, "the line wraps onto several")
+    }
+
+    /// A message's pictures wider than the message become a carousel
+    /// within its width: four phone screenshots side by side ran off the
+    /// screen and took the message's words with them. Two that fit stay a
+    /// row as wide as they are.
+    func testPicturesTooWideBecomeACarousel() {
+        func width(_ count: Int) -> CGFloat {
+            let urls = (0..<count).map { "https://example.invalid/image-\($0).png" }
+            let strip = ImageStrip(urls: urls, sizes: Array(repeating: CGSize(width: 1179, height: 2556), count: count), alignment: .trailing)
+            let renderer = ImageRenderer(content: strip)
+            renderer.proposedSize = ProposedViewSize(width: 300, height: nil)
+            guard let image = renderer.cgImage else { return .infinity }
+            return CGFloat(image.width) / renderer.scale
+        }
+        XCTAssertLessThanOrEqual(width(4), 300.5, "four screenshots stay within the message")
+        XCTAssertLessThanOrEqual(width(2), 300.5)
+    }
+
+    /// Your message's carousel is as wide as the thread, not cut off at
+    /// the margin your words keep on the left: its pictures scroll to the
+    /// screen's edge.
+    func testYourCarouselIsAsWideAsTheThread() {
+        let urls = (0..<4).map { "https://example.invalid/image-\($0).png" }
+        let message = TranscriptMessage(id: "m", role: .user, text: "Four screenshots",
+                                        imageURLs: urls, imageSizes: Array(repeating: CGSize(width: 1179, height: 2556), count: 4))
+        let row = TranscriptRow(message: message)
+        let renderer = ImageRenderer(content: row)
+        renderer.proposedSize = ProposedViewSize(width: 300, height: nil)
+        let width = renderer.cgImage.map { CGFloat($0.width) / renderer.scale } ?? 0
+        XCTAssertEqual(width, 300, accuracy: 0.5, "the row takes the thread's width, and no more")
+    }
+
     /// The send button's target is the circle and the room around it: taps
     /// beside the circle land on it.
     func testTheSendTargetIsLargerThanItsCircle() {

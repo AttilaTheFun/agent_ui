@@ -8,6 +8,18 @@ private struct OpenedToolCallsKey: EnvironmentKey {
     static let defaultValue: Binding<[TranscriptMessage]?> = .constant(nil)
 }
 
+private struct NewRowsPillSecondsKey: EnvironmentKey {
+    static let defaultValue: Double = 4
+}
+
+private struct SuggestionsInPopoverKey: EnvironmentKey {
+    #if os(iOS)
+    static let defaultValue = true
+    #else
+    static let defaultValue = false
+    #endif
+}
+
 extension EnvironmentValues {
     /// The picture open over the thread a row is in: a row sets it to
     /// have the thread show that picture whole.
@@ -20,5 +32,24 @@ extension EnvironmentValues {
     var openedToolCalls: Binding<[TranscriptMessage]?> {
         get { self[OpenedToolCallsKey.self] }
         set { self[OpenedToolCallsKey.self] = newValue }
+    }
+
+    /// How long the new-rows pill stays after the last rows it counts came
+    /// in, in seconds (4). A UI test that reads the pill on a slow machine
+    /// sets it longer, so the pill is still there when the test looks.
+    public var newRowsPillSeconds: Double {
+        get { self[NewRowsPillSecondsKey.self] }
+        set { self[NewRowsPillSecondsKey.self] = newValue }
+    }
+
+    /// Whether the ways to finish a draft (slash commands) are a popover,
+    /// over everything as a context menu is, rather than a menu floating
+    /// above the composer: true on an iPhone or iPad, where a phone held
+    /// sideways has room above its composer only under the navigation
+    /// bar. A host on one that isn't built for iOS (Isomer's iPhone app)
+    /// sets it, so it looks as the native one does.
+    public var suggestionsInPopover: Bool {
+        get { self[SuggestionsInPopoverKey.self] }
+        set { self[SuggestionsInPopoverKey.self] = newValue }
     }
 }

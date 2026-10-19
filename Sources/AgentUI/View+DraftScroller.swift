@@ -20,9 +20,9 @@ extension View {
     /// to its full height here, the field has nothing to scroll; this
     /// scroll view shows the end of the draft as it changes. Elsewhere
     /// the field scrolls itself.
-    @ViewBuilder func draftScroller(draft: String, selection: DraftSelection?) -> some View {
+    @ViewBuilder func draftScroller(draft: String, caret: DraftCaret?) -> some View {
         #if os(macOS)
-        modifier(DraftScroller(draft: draft, atEnd: DraftScroller.caretAtEnd(selection, in: draft)))
+        modifier(DraftScroller(draft: draft, atEnd: DraftScroller.caretAtEnd(caret, in: draft)))
         #else
         self
         #endif
@@ -46,10 +46,9 @@ private struct DraftScroller: ViewModifier {
     @State private var grewAtEnd = false
     private static let end = "draft-end"
 
-    static func caretAtEnd(_ selection: DraftSelection?, in text: String) -> Bool {
-        guard let selection else { return true }
-        if case .selection(let range) = selection.indices { return range.upperBound == text.endIndex }
-        return false
+    static func caretAtEnd(_ caret: DraftCaret?, in text: String) -> Bool {
+        guard let range = caret?.range(in: text) else { return true }
+        return range.upper == text.utf16.count
     }
 
     /// Whether `new` is `old` with more written at its end (or less: a

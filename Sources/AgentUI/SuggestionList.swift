@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// The suggestions above the field: a few rows, the rest a scroll away.
+/// The suggestions in their menu: a few rows, the rest a scroll away.
 struct SuggestionList: View {
     let suggestions: [AgentSuggestion]
+    /// The most height the menu has (the room above the composer).
+    var room: CGFloat = 230
     let pick: (AgentSuggestion) -> Void
 
     var body: some View {
@@ -33,8 +35,9 @@ struct SuggestionList: View {
                 }
             }
         }
-        // Up to about five rows before it scrolls.
-        .frame(maxHeight: min(CGFloat(suggestions.count) * 46, 230))
+        // Up to about five rows before it scrolls, fewer where there is
+        // less room.
+        .frame(height: min(CGFloat(suggestions.count) * 46, 230, room))
         .scrollBounceBehavior(.basedOnSize)
     }
 }
