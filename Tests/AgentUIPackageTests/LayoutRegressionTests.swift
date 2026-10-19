@@ -43,6 +43,23 @@ final class LayoutRegressionTests: XCTestCase {
         XCTAssertGreaterThan(block.height, oneLine * 3, "the line wraps onto several")
     }
 
+    /// A message's pictures wider than the message become a carousel
+    /// within its width: four phone screenshots side by side ran off the
+    /// screen and took the message's words with them. Two that fit stay a
+    /// row as wide as they are.
+    func testPicturesTooWideBecomeACarousel() {
+        func width(_ count: Int) -> CGFloat {
+            let urls = (0..<count).map { "https://example.invalid/image-\($0).png" }
+            let strip = ImageStrip(urls: urls, sizes: Array(repeating: CGSize(width: 1179, height: 2556), count: count), alignment: .trailing)
+            let renderer = ImageRenderer(content: strip)
+            renderer.proposedSize = ProposedViewSize(width: 300, height: nil)
+            guard let image = renderer.cgImage else { return .infinity }
+            return CGFloat(image.width) / renderer.scale
+        }
+        XCTAssertLessThanOrEqual(width(4), 300.5, "four screenshots stay within the message")
+        XCTAssertLessThanOrEqual(width(2), 300.5)
+    }
+
     /// The send button's target is the circle and the room around it: taps
     /// beside the circle land on it.
     func testTheSendTargetIsLargerThanItsCircle() {
