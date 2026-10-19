@@ -101,7 +101,7 @@ final class ComposerTypingTests: XCTestCase {
     private let paragraphs = "Also similar to how visor has \n\nAnd there is more"
     private let afterHas = 30
 
-    /// Logan's case: in the middle of a draft, "archived", Shift-Return,
+    /// The case reported: in the middle of a draft, "archived", Shift-Return,
     /// Delete, "d": the d goes after "archived", the caret after the d.
     func testANewlineDeletedThenALetterTyped() throws {
         let field = try host(paragraphs)
