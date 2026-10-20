@@ -12,6 +12,8 @@ import Foundation
 public struct ImageViewer: View {
     let url: String
     @Environment(\.dismiss) private var dismiss
+    /// No share where the host keeps the transcript in the app.
+    @Environment(\.transcriptSharingAllowed) private var sharingAllowed
     @State private var zoom: CGFloat = 1
     @State private var pinching: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -61,7 +63,9 @@ public struct ImageViewer: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 #if canImport(AppKit) || canImport(UIKit)
                 ToolbarItem(placement: .primaryAction) {
-                    if let file {
+                    if !sharingAllowed {
+                        EmptyView()
+                    } else if let file {
                         // A file, not a string: that is what puts Save
                         // Image in the sheet beside the apps.
                         ShareLink(item: file) { Image(systemName: "square.and.arrow.up") }

@@ -2,14 +2,20 @@ import SwiftUI
 
 /// What to do with something the agent said: take all of it, or send it
 /// on. Selecting part of it is the text's own business — these are for
-/// when the whole thing is wanted.
+/// when the whole thing is wanted. None where the host keeps the
+/// transcript in the app (`transcriptSharingAllowed`).
 public struct MessageActions: View {
     let text: String
     @State private var copied = false
+    @Environment(\.transcriptSharingAllowed) private var sharingAllowed
 
     public init(text: String) { self.text = text }
 
     public var body: some View {
+        if sharingAllowed { actions }
+    }
+
+    private var actions: some View {
         HStack(spacing: 14) {
             Button {
                 TranscriptActions.put(text)
