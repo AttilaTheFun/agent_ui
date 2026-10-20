@@ -12,6 +12,10 @@ private struct NewRowsPillSecondsKey: EnvironmentKey {
     static let defaultValue: Double = 4
 }
 
+private struct TranscriptSharingAllowedKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 private struct SuggestionsInPopoverKey: EnvironmentKey {
     #if os(iOS)
     static let defaultValue = true
@@ -51,5 +55,13 @@ extension EnvironmentValues {
     public var suggestionsInPopover: Bool {
         get { self[SuggestionsInPopoverKey.self] }
         set { self[SuggestionsInPopoverKey.self] = newValue }
+    }
+
+    /// Whether what the transcript says may be taken out of it: its words
+    /// selected, a message copied or shared, a picture shared (true). A
+    /// host whose transcripts must stay in the app sets it false.
+    public var transcriptSharingAllowed: Bool {
+        get { self[TranscriptSharingAllowedKey.self] }
+        set { self[TranscriptSharingAllowedKey.self] = newValue }
     }
 }

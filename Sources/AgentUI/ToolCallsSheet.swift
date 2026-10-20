@@ -39,7 +39,7 @@ public struct ToolCallsSheet: View {
                                 .font(.caption.monospaced())
                                 .foregroundColor(.secondary)
                                 .lineLimit(12)
-                                .textSelection(.enabled)
+                                .transcriptTextSelection()
                         }
                     }
                     .padding(.vertical, 2)

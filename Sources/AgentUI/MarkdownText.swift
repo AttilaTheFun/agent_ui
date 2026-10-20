@@ -19,7 +19,7 @@ public struct MarkdownText: View {
         }
         // On every block, not only the ones that ask: a paragraph, a
         // heading and a list item are all worth selecting a line out of.
-        .textSelection(.enabled)
+        .transcriptTextSelection()
     }
 
     @ViewBuilder private func blockView(_ block: MarkdownBlock) -> some View {
@@ -29,7 +29,7 @@ public struct MarkdownText: View {
             // screen was hard to read and to select on a phone.
             Text(code)
                 .font(.footnote.monospaced())
-                .textSelection(.enabled)
+                .transcriptTextSelection()
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
