@@ -32,7 +32,7 @@ let package = Package(
         // views — upstream, at the merge that builds it for Android
         // (migueldeicaza/SwiftTerm#733). A Bazel build, which runs no
         // SwiftPM plugins, patches in what its build plugin generates.
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", revision: "839d4fa1ffd4ea2ede5664e1c1fb13cc5771e11a"),
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", exact: "1.99.0"),
     ],
     targets: [
         // What the inbox and the thread share: the model values, the theme,
