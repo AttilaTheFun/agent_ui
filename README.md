@@ -57,7 +57,7 @@ build when a `SwiftUI` module of the same API is on the search path.
 ## Consumers
 
 [Visor](https://github.com/AttilaTheFun/visor) uses AgentUI and
-NavigationUI, pinning this repo by revision through
+NavigationUI, pinning this repo by version through
 rules_swift_package_manager. InboxUI and MessagesUI serve messaging apps;
 any SwiftPM or Bazel project can depend on the products it needs.
 

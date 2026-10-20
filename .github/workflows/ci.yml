@@ -18,3 +18,13 @@ jobs:
       # the Swift 6 mode, with warnings as errors.
       - name: Test
         run: swift test -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors
+
+  # Ready to release: every dependency pinned to a released version. Run on
+  # main's commits, which releases are of (a pull request may still pin a
+  # revision); Reviews holds a release until it passes.
+  pins:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/released_pins.sh

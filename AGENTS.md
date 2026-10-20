@@ -35,8 +35,8 @@ to one focused change, and say in it how the change was verified.
 
 - Every target imports SwiftUI and nothing else. No app code, no Bazel, no third-party dependencies — with one exception: TerminalUI also
   imports SwiftTerm, for its portable emulator only (never its UIKit/AppKit
-  views), from upstream github.com/migueldeicaza/SwiftTerm, pinned by
-  revision (it builds for Android since #733; a Bazel host, which runs no
+  views), from upstream github.com/migueldeicaza/SwiftTerm, pinned to a
+  release (1.99.0: it builds for Android since #733; a Bazel host, which runs no
   SwiftPM plugins, patches in what its build plugin generates, as Visor
   does). No other target may depend on it. It is built here against Apple's
   SwiftUI and elsewhere (wasm, Android, Linux, Windows) against a
@@ -87,6 +87,10 @@ to one focused change, and say in it how the change was verified.
 
 `swift build && swift test` for the library (and the Swift 6 line above). For anything visual, run an
 example app from the Xcode project (the Mac chrome only looks right from
-an app bundle built against the current SDK). Consumers pin this repo by
-revision in their `Package.swift` and `Package.resolved` (rules_swift_package_manager);
-bump both after pushing.
+an app bundle built against the current SDK). Releases are tagged
+`vMAJOR.MINOR.PATCH` (v0.36.1). Consumers pin this repo by version in their
+`Package.swift` and `Package.resolved` (rules_swift_package_manager); a
+branch in development may pin a revision, a release may not — nor may this
+repo's own release pin anything but released versions (CI's `pins` job on
+main, `tools/released_pins.sh`). SwiftPM will not resolve a package pinned
+by version whose own dependencies are pinned by revision.
