@@ -27,4 +27,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: tools/released_pins.sh
+      - run: Tools/released_pins.sh

@@ -92,5 +92,5 @@ an app bundle built against the current SDK). Releases are tagged
 `Package.swift` and `Package.resolved` (rules_swift_package_manager); a
 branch in development may pin a revision, a release may not — nor may this
 repo's own release pin anything but released versions (CI's `pins` job on
-main, `tools/released_pins.sh`). SwiftPM will not resolve a package pinned
+main, `Tools/released_pins.sh`). SwiftPM will not resolve a package pinned
 by version whose own dependencies are pinned by revision.
