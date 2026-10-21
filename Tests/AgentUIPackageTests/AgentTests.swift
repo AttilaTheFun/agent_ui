@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import XCTest
 @testable import AgentUI
+@testable import MarkdownViews
 
 final class AgentTests: XCTestCase {
     func testAGoalIsItsOwnRowAmongCalls() {

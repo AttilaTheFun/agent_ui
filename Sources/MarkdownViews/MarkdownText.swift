@@ -6,6 +6,7 @@ import SwiftUI
 /// bold, bullet and numbered lines with their markers, quotes set off by a
 /// bar. Apple's SwiftUI has
 /// `AttributedString(markdown:)`; the portable one shows the text as is.
+/// Whether its words can be selected is the caller's (`.textSelection`).
 public struct MarkdownText: View {
     let text: String
 
@@ -17,9 +18,6 @@ public struct MarkdownText: View {
                 blockView(block)
             }
         }
-        // On every block, not only the ones that ask: a paragraph, a
-        // heading and a list item are all worth selecting a line out of.
-        .transcriptTextSelection()
     }
 
     @ViewBuilder private func blockView(_ block: MarkdownBlock) -> some View {
@@ -29,7 +27,6 @@ public struct MarkdownText: View {
             // screen was hard to read and to select on a phone.
             Text(code)
                 .font(.footnote.monospaced())
-                .transcriptTextSelection()
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)

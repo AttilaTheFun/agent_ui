@@ -19,6 +19,10 @@ let package = Package(
         .library(name: "MessagesUI", targets: ["MessagesUI"]),
         // The agent: `AgentView`, `TranscriptView`, `AgentComposer`.
         .library(name: "AgentUI", targets: ["AgentUI"]),
+        // Markdown as SwiftUI text: `MarkdownText` (paragraphs, headings,
+        // lists, quotes, code that wraps, tables), the agent's messages' and
+        // any app's.
+        .library(name: "MarkdownViews", targets: ["MarkdownViews"]),
         // The containers: `SplitView`, `InspectorView`, `EmptyDetail`.
         .library(name: "NavigationUI", targets: ["NavigationUI"]),
         // A terminal: `TerminalScreen` (SwiftTerm's emulator) drawn by
@@ -41,10 +45,11 @@ let package = Package(
         .target(name: "MessagesCore"),
         .target(name: "InboxUI", dependencies: ["MessagesCore"]),
         .target(name: "MessagesUI", dependencies: ["MessagesCore"]),
-        .target(name: "AgentUI"),
+        .target(name: "MarkdownViews"),
+        .target(name: "AgentUI", dependencies: ["MarkdownViews"]),
         .target(name: "NavigationUI"),
         .target(name: "TerminalUI", dependencies: [.product(name: "SwiftTerm", package: "SwiftTerm")]),
-        .testTarget(name: "AgentUIPackageTests", dependencies: ["AgentUI"]),
+        .testTarget(name: "AgentUIPackageTests", dependencies: ["AgentUI", "MarkdownViews"]),
         .testTarget(name: "TerminalUIPackageTests", dependencies: ["TerminalUI"]),
         .testTarget(name: "MessagesUIPackageTests", dependencies: ["InboxUI", "MessagesUI", "NavigationUI"]),
         // The examples' shared data. The example apps themselves are Xcode
