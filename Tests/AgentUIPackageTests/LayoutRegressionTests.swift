@@ -5,6 +5,7 @@
 import SwiftUI
 import XCTest
 @testable import AgentUI
+@testable import MarkdownViews
 
 @MainActor
 final class LayoutRegressionTests: XCTestCase {

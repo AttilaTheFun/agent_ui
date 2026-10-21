@@ -1,3 +1,4 @@
+import MarkdownViews
 import SwiftUI
 
 public struct TranscriptRow: View {

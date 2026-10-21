@@ -13,8 +13,8 @@ to one focused change, and say in it how the change was verified.
 
 ## Layout
 
-- `Package.swift` at the root: the five products (InboxUI, MessagesUI,
-  AgentUI, NavigationUI, TerminalUI), the shared `MessagesCore` target, the
+- `Package.swift` at the root: the six products (InboxUI, MessagesUI,
+  AgentUI, MarkdownViews, NavigationUI, TerminalUI), the shared `MessagesCore` target, the
   tests, and `ExampleData` (the examples' fake store). Nothing else.
 - `Sources/MessagesCore/`: the model values, MessagesTheme, the native
   styles, Avatar, MessagesPlatform — what the inbox and the thread share;
@@ -22,6 +22,8 @@ to one focused change, and say in it how the change was verified.
 - `Sources/InboxUI/`: InboxView. `Sources/MessagesUI/`: ThreadView,
   MessageView, MessageComposer, ConversationTitle, MacConversationTitlebar.
   `Sources/AgentUI/`: AgentView, TranscriptView and its rows, AgentComposer.
+  `Sources/MarkdownViews/`: MarkdownText and its parser (blocks, inline
+  spans, tables), re-exported by AgentUI.
   `Sources/NavigationUI/`: SplitView, InspectorView. `Sources/TerminalUI/`:
   TerminalScreen (SwiftTerm's emulator, main-actor state the app lends)
   and TerminalScreenView (it drawn in SwiftUI). A file per type, named

@@ -24,6 +24,12 @@ reimplementation of the same API, so one source builds everywhere.
   (attachments, a growing field, the app's pills and buttons, send or stop,
   and a spinner while a message is sending). Ported from the Isomer
   Playground; Visor drives it from a remote Claude Code or Codex session.
+- **MarkdownViews** — `MarkdownText`, Markdown as SwiftUI text:
+  paragraphs with inline styles, headings, bulleted and numbered lists,
+  quotes, fenced code that wraps, and tables. AgentUI's messages use it,
+  and any app can (a pull request's description, release notes);
+  AgentUI re-exports it. Selecting its words is the caller's
+  (`.textSelection`).
 - **NavigationUI** — `SplitView` (sidebar, detail, inspector; the app's
   column bindings), `InspectorView` (a pane's frame with the X),
   `adaptiveInspector(isPresented:compact:)` (an inspector, or a sheet on a

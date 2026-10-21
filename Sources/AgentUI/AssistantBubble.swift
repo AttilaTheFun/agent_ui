@@ -1,3 +1,6 @@
+// MarkdownViews, to every importer of AgentUI as before it was its own
+// module.
+@_exported import MarkdownViews
 import SwiftUI
 
 public struct AssistantBubble: View {
