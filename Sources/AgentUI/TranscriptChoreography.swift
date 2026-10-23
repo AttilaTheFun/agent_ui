@@ -25,6 +25,18 @@ final class TranscriptChoreography {
     /// in view, and asked, and asked again).
     var earlierAsked: ContinuousClock.Instant?
     var earlierLater: Task<Void, Never>?
+    /// The user is scrolling the thread: a finger or a trackpad on it, or
+    /// the list coasting after one (never the thread's own scrolls).
+    var userScrolling = false
+    /// The user is typing (the view's `typing`, kept here where a task that
+    /// waits reads it as it is now, not as it was when the task began).
+    var typing = false
+    /// When the room the thread has last changed: the keyboard on its way.
+    var roomMoved: ContinuousClock.Instant?
+    /// The app's latest rows, not taken while the user is busy with the
+    /// thread (scrolling, typing, the keyboard moving): taken all at once a
+    /// moment after they stop, so the thread never moves under them.
+    var waiting: [TranscriptMessage]?
 
     /// What ends each: one of each at a time, so a second settling or a
     /// second arrival takes over from the first instead of being cut short
@@ -34,4 +46,5 @@ final class TranscriptChoreography {
     var keptEnds: Task<Void, Never>?
     var arrivalEnds: Task<Void, Never>?
     var pillEnds: Task<Void, Never>?
+    var quietEnds: Task<Void, Never>?
 }

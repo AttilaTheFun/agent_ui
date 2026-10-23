@@ -76,6 +76,11 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// The composer's height, for the thread to keep its bottom above it.
     @State private var composerHeight: CGFloat = 0
     @State private var sendingEnds: Task<Void, Never>?
+    /// The user typing: set by each change to the draft and let go a moment
+    /// after the last, or at once when the draft empties (sent). The
+    /// thread's new rows wait meanwhile.
+    @State private var typing = false
+    @State private var typingEnds: Task<Void, Never>?
     /// The call for earlier rows, held across passes for the thread: given
     /// a closure, it would be evaluated again on each of this view's.
     @State private var earlier = ViewAction()
@@ -100,7 +105,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         earlier.run = loadEarlier ?? {}
         return TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                               emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote,
-                              earlier: loadEarlier == nil ? nil : earlier, sending: sendingNow, composerHeight: composerHeight)
+                              earlier: loadEarlier == nil ? nil : earlier, sending: sendingNow, composerHeight: composerHeight,
+                              typing: typing)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
@@ -115,6 +121,19 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                     })
             }
             .scrollDismissesKeyboard(.interactively)
+            .onChange(of: draft) { _, now in
+                typingEnds?.cancel()
+                guard !now.isEmpty else {
+                    if typing { typing = false }
+                    return
+                }
+                if !typing { typing = true }
+                typingEnds = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    typing = false
+                }
+            }
     }
 }
 
