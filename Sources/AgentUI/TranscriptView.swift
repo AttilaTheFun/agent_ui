@@ -41,22 +41,26 @@ public struct TranscriptView: View {
     /// How tall the composer below the thread is: when it grows or shrinks
     /// (lines typed, a draft sent), the thread keeps its bottom in view.
     let composerHeight: CGFloat
+    /// The user is typing in the composer: the thread's new rows wait until
+    /// they pause, as they do while the user scrolls.
+    let typing: Bool
 
     public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
-                loadEarlier: (() -> Void)? = nil, sending: Bool = false, composerHeight: CGFloat = 0) {
+                loadEarlier: (() -> Void)? = nil, sending: Bool = false, composerHeight: CGFloat = 0, typing: Bool = false) {
         self.init(messages: messages, busy: busy, status: status, activity: activity, error: error, emptyTitle: emptyTitle,
                   emptyBody: emptyBody, emptyFootnote: emptyFootnote, earlier: loadEarlier.map { ViewAction(run: $0) },
-                  sending: sending, composerHeight: composerHeight)
+                  sending: sending, composerHeight: composerHeight, typing: typing)
     }
 
     /// With the call for earlier rows held by the caller, kept across its
     /// passes.
     init(messages: [TranscriptMessage], busy: Bool, status: [ActivityItem], activity: String?, error: String?,
          emptyTitle: String, emptyBody: String, emptyFootnote: String?, earlier loadEarlier: ViewAction?,
-         sending: Bool, composerHeight: CGFloat) {
+         sending: Bool, composerHeight: CGFloat, typing: Bool = false) {
         self.sending = sending
         self.composerHeight = composerHeight
+        self.typing = typing
         self.messages = messages
         self._shown = State(initialValue: messages)
         self._revealed = State(initialValue: !messages.isEmpty)
@@ -340,10 +344,11 @@ public struct TranscriptView: View {
             if new.atEnd {
                 if !following { following = true }
                 hidePill()
-            } else if new.offset < old.offset - 1, following, !stage.settling, !holdTop {
+            } else if new.offset < old.offset - 1, following, stage.userScrolling || (!stage.settling && !holdTop) {
                 // Gone up — by the user, not by the list laying out what
                 // the thread is settling on or bringing in (rows measured,
-                // or taken off the top as a catch-up replaces them).
+                // or taken off the top as a catch-up replaces them). The
+                // user's own scroll counts whatever the thread was doing.
                 following = false
             }
         }
@@ -364,6 +369,12 @@ public struct TranscriptView: View {
         content
         .onChange(of: sending) { _, now in
             guard now else { return }
+            // What waited for the user goes in with what they send.
+            if let rows = stage.waiting {
+                stage.quietEnds?.cancel()
+                stage.waiting = nil
+                took(rows, toBottom: toBottom)
+            }
             // What the user sends, they go down to, wherever they were.
             if !following { following = true }
             hidePill()
@@ -408,7 +419,66 @@ public struct TranscriptView: View {
         // replaced whole, earlier ones loaded, a row's words) is not
         // animated.
     private func arrivals(_ content: some View, toBottom: @escaping () -> Void) -> some View {
-        content.onChange(of: messages) { _, new in took(new, toBottom: toBottom) }
+        content
+        .onChange(of: messages) { _, new in
+            // While the user scrolls, types or the keyboard moves, the rows
+            // wait (the latest of them) and go in all at once a moment after
+            // they stop: the thread never moves under the user.
+            if userBusy {
+                stage.waiting = new
+                takeWhenQuiet(toBottom)
+            } else {
+                stage.quietEnds?.cancel()
+                stage.waiting = nil
+                took(new, toBottom: toBottom)
+            }
+        }
+        .onChange(of: typing, initial: true) { _, now in
+            stage.typing = now
+            if !now { takeWhenQuiet(toBottom) }
+        }
+        .onScrollPhaseChange { _, phase in
+            // The user's: a finger or a trackpad on the list, or its
+            // coasting after; the thread's own scrolls animate.
+            let user = phase == .tracking || phase == .interacting || phase == .decelerating
+            guard user != stage.userScrolling else { return }
+            stage.userScrolling = user
+            if user { yieldToUser() } else { takeWhenQuiet(toBottom) }
+        }
+    }
+
+    /// The user is busy with the thread: scrolling it, typing, or the
+    /// keyboard on its way (its room changed a moment ago).
+    private var userBusy: Bool {
+        stage.userScrolling || stage.typing || stage.roomMoved.map { ContinuousClock.now - $0 < .milliseconds(400) } ?? false
+    }
+
+    /// How long the user leaves the thread alone before what waited goes in.
+    static let quiet: UInt64 = 600_000_000
+
+    /// The user takes the thread: what it was doing on its own (scrolling
+    /// to rows that came in, settling on its end) stops where it is.
+    private func yieldToUser() {
+        stage.arrivalEnds?.cancel()
+        if holdTop { holdTop = false }
+        if stage.settling {
+            stage.settlingEnds?.cancel()
+            stage.settling = false
+            reveal(after: 0)
+        }
+    }
+
+    /// Takes the rows that waited, once the user has left the thread alone
+    /// for a moment: asked again as each thing they were doing ends.
+    private func takeWhenQuiet(_ toBottom: @escaping () -> Void) {
+        guard stage.waiting != nil else { return }
+        stage.quietEnds?.cancel()
+        stage.quietEnds = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: Self.quiet)
+            guard !Task.isCancelled, !userBusy, let rows = stage.waiting else { return }
+            stage.waiting = nil
+            took(rows, toBottom: toBottom)
+        }
     }
 
     private func took(_ new: [TranscriptMessage], toBottom: @escaping () -> Void) {
@@ -490,7 +560,13 @@ public struct TranscriptView: View {
         // bottom: a second scroll in the middle of it (the composer
         // shrinking as the words sent leave it) fought it. Only while
         // following: read further up, the thread stays where it is.
-        .onVisibleHeightChange { if following && !holdTop && !sending { withAnimation(.smooth(duration: 0.35)) { toBottom() } } }
+        // The keyboard dragged away with the list (dismissed interactively)
+        // is the user's scroll: the thread is not taken to the bottom then.
+        .onVisibleHeightChange {
+            stage.roomMoved = .now
+            if following && !holdTop && !sending && !stage.userScrolling { withAnimation(.smooth(duration: 0.35)) { toBottom() } }
+            takeWhenQuiet(toBottom)
+        }
         // On a Mac the composer bar's growth reaches the list as an
         // inset its scroll geometry does not report, so the change
         // above never fired and the last rows went under the box: the
@@ -498,7 +574,7 @@ public struct TranscriptView: View {
         // scrolled once the new inset has landed — at once, as the box
         // pushes it, not eased.
         .onComposerHeightChange(composerHeight) {
-            guard following && !holdTop && !sending else { return }
+            guard following && !holdTop && !sending && !stage.userScrolling else { return }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 30_000_000)
                 toBottom()
