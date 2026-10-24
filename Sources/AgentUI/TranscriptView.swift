@@ -344,11 +344,14 @@ public struct TranscriptView: View {
             if new.atEnd {
                 if !following { following = true }
                 hidePill()
-            } else if new.offset < old.offset - 1, following, stage.userScrolling || (!stage.settling && !holdTop) {
+            } else if following, stage.userScrolling ? new.offset < old.offset : (new.offset < old.offset - 1 && !stage.settling && !holdTop) {
                 // Gone up — by the user, not by the list laying out what
                 // the thread is settling on or bringing in (rows measured,
                 // or taken off the top as a catch-up replaces them). The
-                // user's own scroll counts whatever the thread was doing.
+                // user's own scroll counts whatever the thread was doing,
+                // and however slowly: a slow drag on a 120 Hz screen moves
+                // the list less than a point a frame, and the thread kept
+                // following, then took the user back down when they let go.
                 following = false
             }
         }
