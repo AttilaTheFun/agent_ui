@@ -426,8 +426,11 @@ public struct TranscriptView: View {
         .onChange(of: messages) { _, new in
             // While the user scrolls, types or the keyboard moves, the rows
             // wait (the latest of them) and go in all at once a moment after
-            // they stop: the thread never moves under the user.
-            if userBusy {
+            // they stop: the thread never moves under the user. Not with a
+            // send: what the user sends goes in at once, before the agent's
+            // reply has begun — the draft that just emptied, or the
+            // composer giving up its lines, is no reason to hold it.
+            if userBusy && !sending {
                 stage.waiting = new
                 takeWhenQuiet(toBottom)
             } else {
