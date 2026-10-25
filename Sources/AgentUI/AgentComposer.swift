@@ -166,7 +166,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         .padding(.top, 8)
         .padding(.bottom, 12)
         // The composer lines up with the messages above it.
-        .frame(maxWidth: TranscriptMetrics.maxContentWidth)
+        .frame(maxWidth: TranscriptMetrics.maxComposerWidth)
         .frame(maxWidth: .infinity)
     }
 

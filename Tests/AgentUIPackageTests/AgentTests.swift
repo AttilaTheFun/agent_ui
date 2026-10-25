@@ -61,6 +61,21 @@ final class MarkdownTests: XCTestCase {
         if case .code(let code, let language) = blocks[3] { XCTAssertEqual(code, "let x = 1"); XCTAssertEqual(language, "swift") } else { XCTFail() }
         if case .list(let items) = blocks[4] { XCTAssertEqual(items.map(\.marker), ["1.", "2."]) } else { XCTFail() }
     }
+
+    /// Paragraphs and headings run together into one text (a selection
+    /// goes from one into the next); a list, code or a table stands apart.
+    func testProseRunsTogetherAndOtherBlocksStandApart() {
+        let runs = MarkdownRun.runs(MarkdownBlocks.split("# Title\n\nOne paragraph.\n\nAnother.\n\n- a point\n\nAfter the list.\n\n```\ncode\n```"))
+        let shapes = runs.map { run -> String in
+            switch run {
+            case .prose(let blocks): return "prose(\(blocks.count))"
+            case .block(.list): return "list"
+            case .block(.code): return "code"
+            case .block: return "other"
+            }
+        }
+        XCTAssertEqual(shapes, ["prose(3)", "list", "prose(1)", "code"])
+    }
 }
 
 final class MarkdownQuoteTests: XCTestCase {

@@ -14,10 +14,34 @@ public struct MarkdownText: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(MarkdownCache.blocks(text).enumerated()), id: \.offset) { _, block in
-                blockView(block)
+            ForEach(Array(MarkdownRun.runs(MarkdownCache.blocks(text)).enumerated()), id: \.offset) { _, run in
+                switch run {
+                case .prose(let blocks): prose(blocks)
+                case .block(let block): blockView(block)
+                }
             }
         }
+    }
+
+    /// Paragraphs and headings as one text, apart as text's own
+    /// paragraphs are (a blank line): a selection goes from one into the
+    /// next, which it cannot across separate texts.
+    private func prose(_ blocks: [MarkdownBlock]) -> Text {
+        var text: Text?
+        for block in blocks {
+            let piece: Text
+            switch block {
+            case .heading(let level, let line): piece = inline(line).font(Self.headingFont(level))
+            case .paragraph(let lines): piece = inline(lines)
+            default: continue
+            }
+            text = text.map { $0 + Text("\n\n") + piece } ?? piece
+        }
+        return text ?? Text("")
+    }
+
+    static func headingFont(_ level: Int) -> Font {
+        level <= 1 ? .title3.bold() : (level == 2 ? .headline : .subheadline.bold())
     }
 
     @ViewBuilder private func blockView(_ block: MarkdownBlock) -> some View {
@@ -33,8 +57,7 @@ public struct MarkdownText: View {
                 .background(Color.secondary.opacity(0.12))
                 .cornerRadius(8)
         case .heading(let level, let line):
-            inline(line)
-                .font(level <= 1 ? .title3.bold() : (level == 2 ? .headline : .subheadline.bold()))
+            inline(line).font(Self.headingFont(level))
         case .list(let items):
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in

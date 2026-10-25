@@ -18,9 +18,9 @@ extension View {
             // column (an activity line, a lone tool call) sits at the left
             // edge with the rest, not centred in the slack. The outer one
             // centres that column in a window wider than it, so the thread
-            // sits in the middle — and lines up with the composer, which
-            // centres the same way.
-            .frame(maxWidth: TranscriptMetrics.maxContentWidth, alignment: .leading)
+            // sits in the middle, over the composer, which centres the
+            // same way in a narrower column.
+            .frame(maxWidth: TranscriptMetrics.maxTranscriptWidth, alignment: .leading)
             .frame(maxWidth: .infinity)
     }
 

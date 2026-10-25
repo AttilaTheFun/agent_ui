@@ -292,7 +292,8 @@ public struct TranscriptView: View {
                     }
                     .onDisappear { stage.earlierInView = false }
                 }
-                if shown.isEmpty { emptyState }
+                // In the column, at the rows' left edge, as they will be.
+                if shown.isEmpty { emptyState.transcriptCell() }
                 ForEach(TranscriptBlock.blocks(shown)) { block in
                     switch block {
                     case .message(let message): TranscriptRow(message: message).transcriptCell()
@@ -649,6 +650,8 @@ public struct TranscriptView: View {
                 Text(emptyFootnote).font(.caption).foregroundColor(.secondary)
             }
         }
-        .padding()
+        // The rows' own inset, so its words start where theirs will.
+        .padding(.horizontal, TranscriptMetrics.edgeInset)
+        .padding(.top, 10)
     }
 }
