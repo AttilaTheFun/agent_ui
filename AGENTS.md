@@ -13,8 +13,8 @@ to one focused change, and say in it how the change was verified.
 
 ## Layout
 
-- `Package.swift` at the root: the six products (InboxUI, MessagesUI,
-  AgentUI, MarkdownViews, NavigationUI, TerminalUI), the shared `MessagesCore` target, the
+- `Package.swift` at the root: the five products (InboxUI, MessagesUI,
+  AgentUI, MarkdownViews, NavigationUI), the shared `MessagesCore` target, the
   tests, and `ExampleData` (the examples' fake store). Nothing else.
 - `Sources/MessagesCore/`: the model values, MessagesTheme, the native
   styles, Avatar, MessagesPlatform — what the inbox and the thread share;
@@ -24,9 +24,7 @@ to one focused change, and say in it how the change was verified.
   `Sources/AgentUI/`: AgentView, TranscriptView and its rows, AgentComposer.
   `Sources/MarkdownViews/`: MarkdownText and its parser (blocks, inline
   spans, tables), re-exported by AgentUI.
-  `Sources/NavigationUI/`: SplitView, InspectorView. `Sources/TerminalUI/`:
-  TerminalScreen (SwiftTerm's emulator, main-actor state the app lends)
-  and TerminalScreenView (it drawn in SwiftUI). A file per type, named
+  `Sources/NavigationUI/`: SplitView, InspectorView. A file per type, named
   after it; `View+Topic.swift` for what a target adds to `View`.
 - `Tests/AgentUIPackageTests/`: XCTest, `swift test`.
 - `Examples/`: the four example apps as an Xcode project generated from
@@ -35,13 +33,9 @@ to one focused change, and say in it how the change was verified.
 
 ## Rules
 
-- Every target imports SwiftUI and nothing else. No app code, no Bazel, no third-party dependencies — with one exception: TerminalUI also
-  imports SwiftTerm, for its portable emulator only (never its UIKit/AppKit
-  views), from upstream github.com/migueldeicaza/SwiftTerm, pinned to a
-  release (1.99.0: it builds for Android since #733; a Bazel host, which runs no
-  SwiftPM plugins, patches in what its build plugin generates, as Visor
-  does). No other target may depend on it. It is built here against Apple's
-  SwiftUI and elsewhere (wasm, Android, Linux, Windows) against a
+- Every target imports SwiftUI and nothing else. No app code, no Bazel, no
+  third-party dependencies. It is built here against Apple's SwiftUI and
+  elsewhere (wasm, Android, Linux, Windows) against a
   reimplementation of the same API, so:
   - Use only SwiftUI API that exists on iOS 18 / macOS 15, behind
     `#available` for anything newer (the 26 glass styles are the pattern),
