@@ -79,6 +79,16 @@ to one focused change, and say in it how the change was verified.
   copies of these views. AgentUI's look is the Claude app's; consumers must
   not carry copies.
 
+## A release's proof
+
+A release's draft comes with a proof of its demo apps, filed in the review
+store by commit, as Isomer's and OS Server's are: `Tools/proof.sh
+<version>` builds the four example apps for the iPhone simulator (XcodeGen,
+then xcodebuild), launches each and pictures its first screen into
+`.proof/review-ios` with a manifest; from a reviews checkout,
+`bazel run //reviews/harnesses:publish_proof -- runs <agent_ui>/.proof
+--commit <sha>` files it. Make it on the release's commit.
+
 ## Verifying
 
 `swift build && swift test` for the library (and the Swift 6 line above). For anything visual, run an
