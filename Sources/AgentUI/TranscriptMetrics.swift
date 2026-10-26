@@ -10,8 +10,8 @@ public enum TranscriptMetrics {
     public static let bottomGap: CGFloat = 18
     /// A thread is uncomfortable to read across a large display: the
     /// messages stop here and centre in a wider column.
-    public static let maxTranscriptWidth: CGFloat = 1024
-    /// The composer, narrower, centred under them.
+    public static let maxTranscriptWidth: CGFloat = 768
+    /// The composer, as wide as the messages and centred under them.
     public static let maxComposerWidth: CGFloat = 768
     /// A picture's corner, in the transcript and in the viewer.
     public static let imageCorner: CGFloat = 8
