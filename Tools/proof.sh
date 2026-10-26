@@ -10,7 +10,7 @@
 #
 # The version is the release's under review (the newest tag's otherwise).
 # Runs on any Mac with Xcode and XcodeGen; the simulator is one of its own
-# ("AgentUI proof", an iPhone 17), erased first, its clock at 9:41.
+# ("AgentUI proof", an iPhone 17), erased first, its status bar held still.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 OUT="${PROOF_DIR:-$PWD/.proof}"
@@ -31,7 +31,11 @@ xcrun simctl shutdown "$sim" 2>/dev/null || true
 xcrun simctl erase "$sim"
 xcrun simctl boot "$sim"
 xcrun simctl bootstatus "$sim" >/dev/null
-xcrun simctl status_bar "$sim" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+# The status bar held still (~/Developer/AGENTS.md, "hold them still"): the
+# clock, the battery, Wi-Fi and cellular bars, and no carrier name or network
+# type, which otherwise drift from run to run.
+xcrun simctl status_bar "$sim" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
+  --cellularMode active --cellularBars 4 --operatorName "" --batteryState charged --batteryLevel 100
 items=()
 for app in "${APPS[@]}"; do
   bundle="$(ls -d DerivedData/proof/Build/Products/Debug-iphonesimulator/${app}.app 2>/dev/null)"
