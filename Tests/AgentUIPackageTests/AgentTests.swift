@@ -203,3 +203,15 @@ final class DraftCaretTests: XCTestCase {
         XCTAssertNil(DraftCaret.reported(DraftSelection(insertionPoint: end), in: "\u{2014} and"))
     }
 }
+
+/// A picture opens in the transcript's own viewer, anything else in the
+/// system's preview: told by the attachment's name.
+final class PictureTests: XCTestCase {
+    func testPicturesAreToldByTheirNames() {
+        XCTAssertTrue(TranscriptView.isPicture("/data/images/0acc43330fde157f/visor_ios.png"))
+        XCTAssertTrue(TranscriptView.isPicture("/x/Photo.JPEG"))
+        XCTAssertFalse(TranscriptView.isPicture("/x/clip.mov"))
+        XCTAssertFalse(TranscriptView.isPicture("/x/report.pdf"))
+        XCTAssertFalse(TranscriptView.isPicture("/x.d/noextension"))
+    }
+}

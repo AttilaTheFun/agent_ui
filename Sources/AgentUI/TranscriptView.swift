@@ -221,6 +221,14 @@ public struct TranscriptView: View {
         return new.contains { $0.id == last.id }
     }
 
+    /// Whether an attachment is a picture, by its name: one the
+    /// transcript's own viewer shows, rather than the system's preview.
+    static func isPicture(_ reference: String) -> Bool {
+        guard let dot = reference.lastIndex(of: "."), !reference[dot...].contains("/") else { return false }
+        return ["png", "jpg", "jpeg", "gif", "heic", "heif", "webp", "tif", "tiff", "bmp"]
+            .contains(reference[reference.index(after: dot)...].lowercased())
+    }
+
     /// How many rows, as the thread draws them (a run of tool calls is
     /// one), `new` has after the last of `old`'s: what the pill counts.
     /// Earlier rows put in above are not new, and rows that replace all
@@ -595,19 +603,25 @@ public struct TranscriptView: View {
         .environment(\.openedTranscriptImage, $openedImage)
         .environment(\.openedToolCalls, $openedCalls)
         #if canImport(QuickLook)
-        // The system's preview: pictures zoom, videos play, documents
-        // open, with its own share. The attachment's bytes are fetched
-        // first (a picture's are at hand; a video's take a moment, the
-        // tile spinning meanwhile), then handed over as a file.
+        // A picture in the transcript's own viewer, whose bar has its own
+        // backing and reads over any picture (the system's preview draws
+        // its title and buttons straight over a light one). Anything else
+        // in the system's preview: videos play, documents open, with its
+        // own share. Its bytes are fetched first (a video's take a moment,
+        // the tile spinning meanwhile), then handed over as a file.
         .quickLookPreview($previewFile)
         .onChange(of: openedImage) { _, reference in
-            guard let reference else { return }
+            guard let reference, !Self.isPicture(reference) else { return }
             Task { @MainActor in
                 let file = await TranscriptFiles.local(for: reference)
                 guard openedImage == reference else { return }
                 openedImage = nil
                 previewFile = file
             }
+        }
+        .sheet(isPresented: Binding(get: { openedImage.map(Self.isPicture) == true },
+                                    set: { if !$0 { openedImage = nil } })) {
+            if let url = openedImage { ImageViewer(url: url) }
         }
         #else
         .sheet(isPresented: Binding(get: { openedImage != nil },
