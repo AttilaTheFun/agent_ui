@@ -31,6 +31,9 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     let suggestions: (String) -> [AgentSuggestion]
     let pick: (AgentSuggestion) -> Void
     let dictation: (any Dictation)?
+    let subSessions: [SubSession]
+    let openSubSession: (SubSession) -> Void
+    let endSubSession: ((SubSession) -> Void)?
 
     /// - Parameters:
     ///   - messages: the record; the only thing that adds rows.
@@ -38,13 +41,15 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     ///   - error: the last failure, in the status row while idle.
     ///   - busy: the agent is working; the status row spins and the composer offers Stop.
     ///   - sending: a message sent is not on the record yet; the send button says so.
+    ///   - subSessions: the conversations open from this one, a row each above the composer.
     public init(messages: [TranscriptMessage], status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String,
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
                 busy: Bool, sending: Bool = false, attachmentCount: Int = 0, send: @escaping () -> Void,
                 stop: @escaping () -> Void, steer: (() -> Void)? = nil, loadEarlier: (() -> Void)? = nil,
                 suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
-                dictation: (any Dictation)? = nil,
+                dictation: (any Dictation)? = nil, subSessions: [SubSession] = [],
+                openSubSession: @escaping (SubSession) -> Void = { _ in }, endSubSession: ((SubSession) -> Void)? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -61,6 +66,9 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.sending = sending
         self.attachmentCount = attachmentCount
         self.dictation = dictation
+        self.subSessions = subSessions
+        self.openSubSession = openSubSession
+        self.endSubSession = endSubSession
         self.send = send
         self.stop = stop
         self.steer = steer
@@ -110,7 +118,9 @@ public struct AgentView<Controls: View, Attachments: View>: View {
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
-                              sending: sending, suggestions: suggestions, pick: pick, dictation: dictation, controls: controls, attachments: attachments)
+                              sending: sending, suggestions: suggestions, pick: pick, dictation: dictation,
+                              subSessions: subSessions, openSubSession: openSubSession, endSubSession: endSubSession,
+                              controls: controls, attachments: attachments)
                     .background(GeometryReader { proxy in
                         // Whole points, and only a real change: a measure
                         // that differs by a fraction would write again and

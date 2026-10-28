@@ -23,11 +23,17 @@ struct AgentExampleScreen: View {
     @State private var draft = ""
     @State private var busy = false
     @State private var task: Task<Void, Never>?
+    /// Conversations open from this one: a row each above the composer.
+    @State private var subSessions = [
+        SubSession(id: "fork", kind: .fork, title: "Try the other layout", detail: "Building", working: true),
+        SubSession(id: "side", kind: .side, title: "Which file holds the composer?", detail: "AgentComposer.swift"),
+    ]
 
     var body: some View {
         AgentView(messages: messages, activity: activity,
                   emptyBody: "Ask for anything; this agent echoes it back, slowly, after pretending to build.",
-                  emptyFootnote: "Model: example", draft: $draft, busy: busy, send: send, stop: stop) {
+                  emptyFootnote: "Model: example", draft: $draft, busy: busy, send: send, stop: stop,
+                  subSessions: subSessions, endSubSession: { ended in subSessions.removeAll { $0.id == ended.id } }) {
             Button { } label: { AgentPillLabel("example") }.agentPillButton()
         } attachments: {
             EmptyView()
