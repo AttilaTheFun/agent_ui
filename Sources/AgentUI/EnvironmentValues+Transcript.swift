@@ -12,6 +12,10 @@ private struct NewRowsPillSecondsKey: EnvironmentKey {
     static let defaultValue: Double = 4
 }
 
+private struct BranchFromMessageKey: EnvironmentKey {
+    static let defaultValue: MessageAction? = nil
+}
+
 private struct TranscriptSharingAllowedKey: EnvironmentKey {
     static let defaultValue = true
 }
@@ -30,6 +34,13 @@ extension EnvironmentValues {
     var openedTranscriptImage: Binding<String?> {
         get { self[OpenedTranscriptImageKey.self] }
         set { self[OpenedTranscriptImageKey.self] = newValue }
+    }
+
+    /// Branch from Here, under each of the agent's replies, where the app
+    /// takes it: told the reply's id.
+    var branchFromMessage: MessageAction? {
+        get { self[BranchFromMessageKey.self] }
+        set { self[BranchFromMessageKey.self] = newValue }
     }
 
     /// The run of tool calls open for inspection over the thread.

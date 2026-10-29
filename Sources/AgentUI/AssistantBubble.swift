@@ -5,9 +5,12 @@ import SwiftUI
 
 public struct AssistantBubble: View {
     let text: String
+    /// The message's, for the actions under it that go by it (a branch).
+    let id: String?
 
-    public init(text: String) {
+    public init(text: String, id: String? = nil) {
         self.text = text
+        self.id = id
     }
 
     /// No avatar or glyph beside the text: on a phone the width is the
@@ -18,7 +21,7 @@ public struct AssistantBubble: View {
             MarkdownText(text)
                 .transcriptTextSelection()
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if !text.isEmpty { MessageActions(text: text) }
+            if !text.isEmpty { MessageActions(text: text, id: id) }
         }
         .padding(.horizontal, TranscriptMetrics.edgeInset)
     }

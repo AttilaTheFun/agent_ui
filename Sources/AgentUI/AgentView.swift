@@ -35,6 +35,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     let openSubSession: (SubSession) -> Void
     let endSubSession: ((SubSession) -> Void)?
     let focus: FocusState<Bool>.Binding?
+    let branchFromHere: ((String) -> Void)?
 
     /// - Parameters:
     ///   - messages: the record; the only thing that adds rows.
@@ -48,6 +49,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     ///     command typed): it sets this to false first. A page pushed over
     ///     a focused field gets the keyboard back as the page is popped,
     ///     and SwiftUI then leaves the composer under it.
+    ///   - branchFromHere: Branch from Here under each of the agent's
+    ///     replies, told the reply's id; none when nil.
     public init(messages: [TranscriptMessage], status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String,
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
@@ -56,7 +59,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 dictation: (any Dictation)? = nil, subSessions: [SubSession] = [],
                 openSubSession: @escaping (SubSession) -> Void = { _ in }, endSubSession: ((SubSession) -> Void)? = nil,
-                focus: FocusState<Bool>.Binding? = nil,
+                focus: FocusState<Bool>.Binding? = nil, branchFromHere: ((String) -> Void)? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -77,6 +80,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.openSubSession = openSubSession
         self.endSubSession = endSubSession
         self.focus = focus
+        self.branchFromHere = branchFromHere
         self.send = send
         self.stop = stop
         self.steer = steer
@@ -100,6 +104,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     /// The call for earlier rows, held across passes for the thread: given
     /// a closure, it would be evaluated again on each of this view's.
     @State private var earlier = ViewAction()
+    /// Branch from Here, held across passes for the rows.
+    @State private var branch = MessageAction()
 
     /// Sending, with the thread told first — in the same update as the
     /// draft clearing and the message going in.
@@ -119,10 +125,12 @@ public struct AgentView<Controls: View, Attachments: View>: View {
 
     public var body: some View {
         earlier.run = loadEarlier ?? {}
+        branch.run = branchFromHere ?? { _ in }
         return TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                               emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote,
                               earlier: loadEarlier == nil ? nil : earlier, sending: sendingNow, composerHeight: composerHeight,
                               typing: typing)
+            .environment(\.branchFromMessage, branchFromHere == nil ? nil : branch)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),

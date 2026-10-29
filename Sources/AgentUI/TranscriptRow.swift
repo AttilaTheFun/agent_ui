@@ -32,7 +32,7 @@ public struct TranscriptRow: View {
             }
         case .assistant:
             VStack(alignment: .leading, spacing: 6) {
-                if !message.text.isEmpty { AssistantBubble(text: message.text) }
+                if !message.text.isEmpty { AssistantBubble(text: message.text, id: message.id) }
                 ForEach(message.activities.indices, id: \.self) { index in
                     ActivityRow(label: message.activities[index], running: false)
                 }
