@@ -11,7 +11,12 @@ public final class ExampleStore: ObservableObject {
     @Published private var histories: [String: [MessageItem]]
 
     public init() {
-        let now = Date()
+        // Today at fixed times: the inbox shows a time for today, so the
+        // examples' screens are the same whenever they are pictured (a
+        // time worked out from the clock moved with it, and a weekday with
+        // the day).
+        let today = Calendar.current.startOfDay(for: Date())
+        let hours: [Double] = [21, 12, 3, 1.5]
         let people = [
             ("ada", "Ada", Presence.online, "See you at the lab at 9."),
             ("grace", "Grace", Presence.idle, "The compiler build passed."),
@@ -21,7 +26,7 @@ public final class ExampleStore: ObservableObject {
         var summaries: [ConversationSummary] = []
         var histories: [String: [MessageItem]] = [:]
         for (index, person) in people.enumerated() {
-            let when = now.addingTimeInterval(-Double(index) * 3600 * 9)
+            let when = today.addingTimeInterval(hours[index] * 3600)
             summaries.append(ConversationSummary(id: person.0, name: person.1, presence: person.2,
                                                  preview: person.3, timestamp: when))
             var history: [MessageItem] = []
@@ -39,7 +44,7 @@ public final class ExampleStore: ObservableObject {
         }
         histories["grace"]?.append(MessageItem(
             id: "grace-3", isMine: false,
-            content: .custom(kind: "build", payload: "passed"), timestamp: now.addingTimeInterval(-3600 * 8)
+            content: .custom(kind: "build", payload: "passed"), timestamp: today.addingTimeInterval(3600 * 13)
         ))
         self.conversations = summaries
         self.histories = histories
