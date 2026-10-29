@@ -81,21 +81,21 @@ to one focused change, and say in it how the change was verified.
 
 ## A release's proof
 
-A release's draft comes with a proof of its demo apps, made by CI and filed
-in the review store by commit. CI's `proof` job runs `Tools/proof.sh` on
-every pull request and every commit to main: it builds the four example
-apps for the iPhone simulator (XcodeGen, then xcodebuild), launches each,
-pictures its first screen into `.proof/review-ios` with a manifest, and
-keeps that as the run's `review-ios` artifact. For a release, file the
-artifact of its commit's run under the release's version (the job labels
-it with the newest tag before it):
+CI makes it. The `proof` job runs `Tools/ci/mac_vm_proof.sh` on the
+repository's own runner (`agent_ui-ci`, which a fork's pull request never
+reaches). The script leases a macOS VM from OS Server (`xcode-27.0`), copies
+the committed tree in, and runs `Tools/proof.sh` there, which builds the four
+example apps for the iPhone simulator and pictures each one's first screen.
+It compares each picture with the one kept for it in `Tests/Proof` and
+uploads the `proof` artifact: `screens/`, `diffs/` (only what changed) and
+`proof.json`. Reviews reads it straight from GitHub by commit: a pull
+request's quick proof, and a release's full proof from main's run of the
+commit its draft targets. Nothing is filed by hand. A change that is meant
+to look different takes its new screens into `Tests/Proof` in the same
+pull request, from its run's `proof` artifact.
 
-    gh run download <run> -R AttilaTheFun/agent_ui -n review-ios -D /tmp/agentui-proof/review-ios
-    # set "version" and "release" in its manifest.json to the release's
-    bazel run //reviews/harnesses:publish_proof -- runs /tmp/agentui-proof --commit <sha>   # from a reviews checkout
-
-`Tools/proof.sh <version>` makes the same run on your own Mac, to look at
-before pushing; the release's is CI's.
+`Tools/proof.sh` makes the same pictures on your own Mac, to look at before
+pushing.
 
 ## Verifying
 
