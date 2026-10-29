@@ -43,7 +43,8 @@ for app in "${APPS[@]}"; do
   id="$(defaults read "$PWD/$bundle/Info" CFBundleIdentifier)"
   xcrun simctl install "$sim" "$bundle" && xcrun simctl launch "$sim" "$id" >/dev/null
   sleep 5
-  if xcrun simctl io "$sim" screenshot "$OUT/review-ios/$app.png" >/dev/null 2>&1; then
+  # Masked: a fresh simulator draws the Dynamic Island and another doesn't.
+  if xcrun simctl io "$sim" screenshot --mask=black "$OUT/review-ios/$app.png" >/dev/null 2>&1; then
     items+=("{\"name\":\"$app\",\"status\":\"new\",\"capture\":\"$app.png\"}")
   else
     items+=("{\"name\":\"$app\",\"status\":\"failed\",\"notes\":\"no picture\"}"); status=1

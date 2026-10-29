@@ -7,6 +7,9 @@ on:
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Read only: no job here publishes or writes to the repository.
+permissions:
+  contents: read
 jobs:
   test:
     # Xcode 27, the toolchain the code is written against.
