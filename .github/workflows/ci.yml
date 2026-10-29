@@ -7,6 +7,9 @@ on:
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Read only: no job here publishes or writes to the repository.
+permissions:
+  contents: read
 jobs:
   test:
     # Xcode 27, the toolchain the code is written against.
@@ -18,6 +21,37 @@ jobs:
       # the Swift 6 mode, with warnings as errors.
       - name: Test
         run: swift test -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors
+
+  # The proof: the demo apps' first screens at this commit, made in a macOS
+  # VM leased from OS Server (Tools/ci/mac_vm_proof.sh), and how each
+  # differs from its kept picture (Tests/Proof). Reviews reads the `proof`
+  # artifact from GitHub: a pull request's quick proof, and a release's
+  # full proof from main's run of its commit. On the repository's own
+  # runner, which a fork's pull request never reaches.
+  proof:
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, agent_ui-ci]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: The demo apps in a macOS VM, and the proof
+        env:
+          # The branch, for a pull request's head (its run's ref is GitHub's merge).
+          PROOF_REF: ${{ github.event.pull_request && format('refs/heads/{0}', github.head_ref) || github.ref }}
+          PROOF_KIND: ${{ github.event_name == 'pull_request' && 'quick' || 'full' }}
+        # exec: the runner's cancel reaches the script's trap, which releases the VM.
+        run: exec Tools/ci/mac_vm_proof.sh --kind "$PROOF_KIND" --proof "$RUNNER_TEMP/proof"
+      # The proof whether the apps came up or not: a broken screen is what it's for.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: proof
+          path: ${{ runner.temp }}/proof
+          retention-days: 90
 
   # Ready to release: every dependency pinned to a released version. Run on
   # main's commits, which releases are of (a pull request may still pin a

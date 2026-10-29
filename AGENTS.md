@@ -81,13 +81,21 @@ to one focused change, and say in it how the change was verified.
 
 ## A release's proof
 
-A release's draft comes with a proof of its demo apps, filed in the review
-store by commit, as Isomer's and OS Server's are: `Tools/proof.sh
-<version>` builds the four example apps for the iPhone simulator (XcodeGen,
-then xcodebuild), launches each and pictures its first screen into
-`.proof/review-ios` with a manifest; from a reviews checkout,
-`bazel run //reviews/harnesses:publish_proof -- runs <agent_ui>/.proof
---commit <sha>` files it. Make it on the release's commit.
+CI makes it. The `proof` job runs `Tools/ci/mac_vm_proof.sh` on the
+repository's own runner (`agent_ui-ci`, which a fork's pull request never
+reaches). The script leases a macOS VM from OS Server (`xcode-27.0`), copies
+the committed tree in, and runs `Tools/proof.sh` there, which builds the four
+example apps for the iPhone simulator and pictures each one's first screen.
+It compares each picture with the one kept for it in `Tests/Proof` and
+uploads the `proof` artifact: `screens/`, `diffs/` (only what changed) and
+`proof.json`. Reviews reads it straight from GitHub by commit: a pull
+request's quick proof, and a release's full proof from main's run of the
+commit its draft targets. Nothing is filed by hand. A change that is meant
+to look different takes its new screens into `Tests/Proof` in the same
+pull request, from its run's `proof` artifact.
+
+`Tools/proof.sh` makes the same pictures on your own Mac, to look at before
+pushing.
 
 ## Verifying
 

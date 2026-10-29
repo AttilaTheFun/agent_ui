@@ -25,7 +25,8 @@ struct AgentExampleScreen: View {
     @State private var task: Task<Void, Never>?
     /// Conversations open from this one: a row each above the composer.
     @State private var subSessions = [
-        SubSession(id: "fork", kind: .fork, title: "Try the other layout", detail: "Building", working: true),
+        // Not working: a spinner is never the same picture twice.
+        SubSession(id: "fork", kind: .fork, title: "Try the other layout", detail: "Building"),
         SubSession(id: "side", kind: .side, title: "Which file holds the composer?", detail: "AgentComposer.swift"),
     ]
 
