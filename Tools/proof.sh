@@ -45,8 +45,9 @@ for device in "iPhone 17" "iPad Pro 13-inch (M5)"; do
   xcrun simctl bootstatus "$sim" >/dev/null
   # The status bar held still (~/Developer/AGENTS.md, "hold them still"): the
   # clock, the battery, Wi-Fi and cellular bars, and no carrier name or network
-  # type, which otherwise drift from run to run.
-  xcrun simctl status_bar "$sim" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
+  # type, which otherwise drift from run to run. A whole date, for an iPad's
+  # status bar shows the day too.
+  xcrun simctl status_bar "$sim" override --time 2007-01-09T09:41:00 --dataNetwork wifi --wifiMode active --wifiBars 3 \
     --cellularMode active --cellularBars 4 --operatorName "" --batteryState charged --batteryLevel 100
   for app in "${apps[@]}"; do
     bundle="$(ls -d DerivedData/proof/Build/Products/Debug-iphonesimulator/${app}.app 2>/dev/null)"

@@ -43,7 +43,9 @@ struct SplitRoot: View {
     @StateObject private var store = ExampleStore()
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var selection: String?
-    @State private var columns: NavigationSplitViewVisibility = .automatic
+    // The sidebar beside the conversation from the start, as the example
+    // is about: on an iPad in portrait, automatic hides it.
+    @State private var columns: NavigationSplitViewVisibility = .all
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var details = false
     #if os(macOS)
