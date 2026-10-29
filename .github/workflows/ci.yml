@@ -19,6 +19,28 @@ jobs:
       - name: Test
         run: swift test -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors
 
+  # The release's proof, made here rather than by hand: the demo apps' first
+  # screens on an iPhone simulator (Tools/proof.sh), kept as the review-ios
+  # artifact, which the review store files by this commit (reviews'
+  # MANIFEST.md, "Runs from an app's own CI").
+  proof:
+    needs: test
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The tags: the run is labelled with the newest release's version.
+          fetch-depth: 0
+      - name: XcodeGen
+        run: command -v xcodegen || brew install xcodegen
+      - name: Proof
+        run: Tools/proof.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-ios
+          path: .proof/review-ios
+          if-no-files-found: error
+
   # Ready to release: every dependency pinned to a released version. Run on
   # main's commits, which releases are of (a pull request may still pin a
   # revision); Reviews holds a release until it passes.

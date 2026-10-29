@@ -81,13 +81,21 @@ to one focused change, and say in it how the change was verified.
 
 ## A release's proof
 
-A release's draft comes with a proof of its demo apps, filed in the review
-store by commit, as Isomer's and OS Server's are: `Tools/proof.sh
-<version>` builds the four example apps for the iPhone simulator (XcodeGen,
-then xcodebuild), launches each and pictures its first screen into
-`.proof/review-ios` with a manifest; from a reviews checkout,
-`bazel run //reviews/harnesses:publish_proof -- runs <agent_ui>/.proof
---commit <sha>` files it. Make it on the release's commit.
+A release's draft comes with a proof of its demo apps, made by CI and filed
+in the review store by commit. CI's `proof` job runs `Tools/proof.sh` on
+every pull request and every commit to main: it builds the four example
+apps for the iPhone simulator (XcodeGen, then xcodebuild), launches each,
+pictures its first screen into `.proof/review-ios` with a manifest, and
+keeps that as the run's `review-ios` artifact. For a release, file the
+artifact of its commit's run under the release's version (the job labels
+it with the newest tag before it):
+
+    gh run download <run> -R AttilaTheFun/agent_ui -n review-ios -D /tmp/agentui-proof/review-ios
+    # set "version" and "release" in its manifest.json to the release's
+    bazel run //reviews/harnesses:publish_proof -- runs /tmp/agentui-proof --commit <sha>   # from a reviews checkout
+
+`Tools/proof.sh <version>` makes the same run on your own Mac, to look at
+before pushing; the release's is CI's.
 
 ## Verifying
 
