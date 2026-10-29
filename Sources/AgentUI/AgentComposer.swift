@@ -180,8 +180,9 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         .padding(.horizontal, TranscriptMetrics.edgeInset)
         // The room between the last message and the box is the transcript's
         // last cell (TranscriptMetrics.bottomGap), not padding here, so it
-        // scrolls with the thread.
-        .padding(.top, 8)
+        // scrolls with the thread. Rows above the box take more: the status
+        // line read as one of them.
+        .padding(.top, subSessions.isEmpty ? 8 : 8 + AgentComposerMetrics.textInset)
         .padding(.bottom, 12)
         // The composer lines up with the messages above it.
         .frame(maxWidth: TranscriptMetrics.maxComposerWidth)
