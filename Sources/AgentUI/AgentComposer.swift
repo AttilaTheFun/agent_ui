@@ -38,7 +38,11 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     let subSessions: [SubSession]
     let openSubSession: (SubSession) -> Void
     let endSubSession: ((SubSession) -> Void)?
-    @FocusState private var focused: Bool
+    /// The field has the keyboard: the app's, where it gave one, else the
+    /// composer's own.
+    let focus: FocusState<Bool>.Binding?
+    @FocusState private var ownFocus: Bool
+    private var focused: FocusState<Bool>.Binding { focus ?? $ownFocus }
     /// Bumped after a send. Apple's multi-line field goes on showing what
     /// the app cleared out from under it while it has focus, so it is
     /// given a new identity and made to read the binding again.
@@ -69,13 +73,18 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     ///   - subSessions: the conversations open from this one (forks,
     ///     branches, side questions, subagents), a row each above the box;
     ///     `openSubSession` and `endSubSession` are told which was tapped.
+    ///   - focus: whether the field has the keyboard, for an app that takes
+    ///     it down itself (see `AgentView`); the composer keeps its own
+    ///     when nil.
     public init(draft: Binding<String>, placeholder: String = "Message the agent…", busy: Bool,
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
                 steer: (() -> Void)? = nil, sending: Bool = false,
                 suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 dictation: (any Dictation)? = nil, subSessions: [SubSession] = [],
                 openSubSession: @escaping (SubSession) -> Void = { _ in }, endSubSession: ((SubSession) -> Void)? = nil,
+                focus: FocusState<Bool>.Binding? = nil,
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
+        self.focus = focus
         self.suggest = suggestions
         self.subSessions = subSessions
         self.openSubSession = openSubSession
@@ -134,7 +143,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         if !AgentText.isBlank(words) { sentWords = AgentText.trimmed(words) }
         #if os(macOS)
         fieldGeneration &+= 1
-        focused = true
+        focused.wrappedValue = true
         #else
         Task { @MainActor in
             await Task.yield()
@@ -145,12 +154,20 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         #endif
     }
 
+    /// A row's conversation, opened with the keyboard taken down first. A
+    /// page pushed over a focused field gets it back as the page is popped,
+    /// and SwiftUI then leaves the composer under the keyboard.
+    private func open(_ item: SubSession) {
+        focused.wrappedValue = false
+        openSubSession(item)
+    }
+
     public var body: some View {
         VStack(spacing: AgentComposerMetrics.gap) {
             // Apart from the box's glass container: in it, glass this
             // close runs together into one blob.
             if !subSessions.isEmpty {
-                SubSessionRows(items: subSessions, open: openSubSession, end: endSubSession)
+                SubSessionRows(items: subSessions, open: open, end: endSubSession)
             }
             Group {
                 if #available(iOS 26, macOS 26, *) {
@@ -205,7 +222,7 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
                     .padding(.bottom, AgentComposerMetrics.gap)
                     .padding(.trailing, AgentComposerMetrics.gap)
                 }
-                ComposerField(draft: $draft, placeholder: placeholder, sentWords: sentWords, sending: sending, focused: $focused,
+                ComposerField(draft: $draft, placeholder: placeholder, sentWords: sentWords, sending: sending, focused: focused,
                               generation: fieldGeneration, attachmentCount: attachmentCount, handedOver: handedOver != nil,
                               actions: heldActions, picked: picked)
                 .padding(.horizontal, AgentComposerMetrics.inner)
