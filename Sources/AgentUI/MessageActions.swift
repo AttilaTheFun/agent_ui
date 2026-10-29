@@ -40,7 +40,8 @@ public struct MessageActions: View {
                 Button {
                     branch(id)
                 } label: {
-                    Image(systemName: "arrow.triangle.branch")
+                    // The branch's own, as its row has it.
+                    Image(systemName: SubSession.Kind.branch.symbol)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Branch from Here")
