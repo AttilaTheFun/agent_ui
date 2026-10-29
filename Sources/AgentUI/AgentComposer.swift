@@ -34,6 +34,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// What the draft was when listening began: what is heard follows it.
     @State private var dictatedFrom = ""
     let pick: (AgentSuggestion) -> Void
+    /// The conversations open from this one, a row each above the box.
+    let subSessions: [SubSession]
+    let openSubSession: (SubSession) -> Void
+    let endSubSession: ((SubSession) -> Void)?
     @FocusState private var focused: Bool
     /// Bumped after a send. Apple's multi-line field goes on showing what
     /// the app cleared out from under it while it has focus, so it is
@@ -62,13 +66,20 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     ///   - suggestions: ways to finish a draft (slash commands), listed
     ///     above the field; `pick` is told which was tapped. Asked as the
     ///     draft changes, by the view that shows them.
+    ///   - subSessions: the conversations open from this one (forks,
+    ///     branches, side questions, subagents), a row each above the box;
+    ///     `openSubSession` and `endSubSession` are told which was tapped.
     public init(draft: Binding<String>, placeholder: String = "Message the agent…", busy: Bool,
                 attachmentCount: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void,
                 steer: (() -> Void)? = nil, sending: Bool = false,
                 suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
-                dictation: (any Dictation)? = nil,
+                dictation: (any Dictation)? = nil, subSessions: [SubSession] = [],
+                openSubSession: @escaping (SubSession) -> Void = { _ in }, endSubSession: ((SubSession) -> Void)? = nil,
                 @ViewBuilder controls: () -> Controls, @ViewBuilder attachments: () -> Attachments) {
         self.suggest = suggestions
+        self.subSessions = subSessions
+        self.openSubSession = openSubSession
+        self.endSubSession = endSubSession
         self.pick = pick
         self.dictation = dictation
         self._draft = draft
@@ -135,11 +146,18 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     }
 
     public var body: some View {
-        Group {
-            if #available(iOS 26, macOS 26, *) {
-                GlassEffectContainer(spacing: 10) { box }
-            } else {
-                box
+        VStack(spacing: AgentComposerMetrics.gap) {
+            // Apart from the box's glass container: in it, glass this
+            // close runs together into one blob.
+            if !subSessions.isEmpty {
+                SubSessionRows(items: subSessions, open: openSubSession, end: endSubSession)
+            }
+            Group {
+                if #available(iOS 26, macOS 26, *) {
+                    GlassEffectContainer(spacing: 10) { box }
+                } else {
+                    box
+                }
             }
         }
         // The ways to finish the draft (slash commands) as a menu over what
