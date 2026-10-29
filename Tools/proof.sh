@@ -1,16 +1,16 @@
 #!/bin/bash
-# The proof of a commit, for a release's review: the demo apps
-# (Examples/: AgentExample, SplitExample, StackExample, TabbedExample), each
-# built for the iPhone simulator, launched and pictured, as a run the review
-# server files by commit (Reviews shows it with the release's draft).
+# The demo apps' first screens (Examples/: AgentExample, SplitExample,
+# StackExample, TabbedExample), each built for the simulator, launched and
+# pictured. CI runs it in a leased macOS VM (Tools/ci/mac_vm_proof.sh) and
+# compares the pictures with Tests/Proof; run here, it is a look before
+# pushing.
 #
 #   Tools/proof.sh [version]          -> .proof/review-ios (or $PROOF_DIR)
-#   then, from a reviews checkout:
-#   bazel run //reviews/harnesses:publish_proof -- runs <agent_ui>/.proof --commit <sha>
 #
-# The version is the release's under review (the newest tag's otherwise).
-# Runs on any Mac with Xcode and XcodeGen; the simulator is one of its own
-# ("AgentUI proof", an iPhone 17), erased first, its status bar held still.
+# Split and Stack on an iPad, where their sidebars show; the others on an
+# iPhone. Each device a simulator of its own ("AgentUI proof", an iPhone 17;
+# "AgentUI proof iPad", an iPad Pro 13-inch (M5)), erased first, its status
+# bar held still, one at a time. Needs Xcode and XcodeGen.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 OUT="${PROOF_DIR:-$PWD/.proof}"
@@ -25,37 +25,54 @@ for app in "${APPS[@]}"; do
     > "$OUT/build-$app.log" 2>&1 || { echo "$app: build failed (see $OUT/build-$app.log)"; status=1; }
 done
 runtime="$(xcrun simctl list runtimes | grep -o 'com.apple.CoreSimulator.SimRuntime.iOS-[0-9-]*' | tail -1)"
-sim="$(xcrun simctl list devices | grep -F 'AgentUI proof (' | grep -o '[0-9A-F-]\{36\}' | head -1)"
-[ -n "$sim" ] || sim="$(xcrun simctl create "AgentUI proof" "iPhone 17" "$runtime")"
-xcrun simctl shutdown "$sim" 2>/dev/null || true
-xcrun simctl erase "$sim"
-xcrun simctl boot "$sim"
-xcrun simctl bootstatus "$sim" >/dev/null
-# The status bar held still (~/Developer/AGENTS.md, "hold them still"): the
-# clock, the battery, Wi-Fi and cellular bars, and no carrier name or network
-# type, which otherwise drift from run to run.
-xcrun simctl status_bar "$sim" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
-  --cellularMode active --cellularBars 4 --operatorName "" --batteryState charged --batteryLevel 100
+# Each example on the device it is about: an iPad for the two that differ
+# only where there is room for a sidebar beside the content (on an iPhone
+# both are a list alone, and look the same), an iPhone for the rest.
+at="$(date -u -r "$(date -j -f '%Y-%m-%dT%H:%M:%S' 2007-01-09T09:41:00 +%s)" '+%Y-%m-%dT%H:%M:%S.000Z')"
+device_for() { case "$1" in SplitExample | StackExample) echo "iPad Pro 13-inch (M5)" ;; *) echo "iPhone 17" ;; esac; }
 items=()
-for app in "${APPS[@]}"; do
-  bundle="$(ls -d DerivedData/proof/Build/Products/Debug-iphonesimulator/${app}.app 2>/dev/null)"
-  [ -n "$bundle" ] || { items+=("{\"name\":\"$app\",\"status\":\"failed\",\"notes\":\"not built\"}"); status=1; continue; }
-  id="$(defaults read "$PWD/$bundle/Info" CFBundleIdentifier)"
-  xcrun simctl install "$sim" "$bundle" && xcrun simctl launch "$sim" "$id" >/dev/null
-  sleep 5
-  # Masked: a fresh simulator draws the Dynamic Island and another doesn't.
-  if xcrun simctl io "$sim" screenshot --mask=black "$OUT/review-ios/$app.png" >/dev/null 2>&1; then
-    items+=("{\"name\":\"$app\",\"status\":\"new\",\"capture\":\"$app.png\"}")
-  else
-    items+=("{\"name\":\"$app\",\"status\":\"failed\",\"notes\":\"no picture\"}"); status=1
+for device in "iPhone 17" "iPad Pro 13-inch (M5)"; do
+  apps=()
+  for app in "${APPS[@]}"; do [ "$(device_for "$app")" = "$device" ] && apps+=("$app"); done
+  [ ${#apps[@]} -gt 0 ] || continue
+  # A simulator of its own for each device, erased first; one at a time.
+  name="AgentUI proof"
+  [ "$device" = "iPhone 17" ] || name="AgentUI proof iPad"
+  sim="$(xcrun simctl list devices | grep -F "$name (" | grep -o '[0-9A-F-]\{36\}' | head -1)"
+  [ -n "$sim" ] || sim="$(xcrun simctl create "$name" "$device" "$runtime")"
+  xcrun simctl shutdown "$sim" 2>/dev/null || true
+  xcrun simctl erase "$sim"
+  xcrun simctl boot "$sim"
+  xcrun simctl bootstatus "$sim" >/dev/null
+  # The status bar held still (~/Developer/AGENTS.md, "hold them still"): the
+  # clock, the battery, Wi-Fi and cellular bars, and no carrier name or network
+  # type, which otherwise drift from run to run. A whole date, for an iPad's
+  # status bar shows the day too: 9:41 on 9 January 2007 where the simulator
+  # is, in the one form simctl takes (UTC, with milliseconds).
+  if ! xcrun simctl status_bar "$sim" override --time "$at" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+    --cellularMode active --cellularBars 4 --operatorName "" --batteryState charged --batteryLevel 100; then
+    echo "$device: the status bar was not held still"; status=1
   fi
-  xcrun simctl terminate "$sim" "$id" >/dev/null 2>&1 || true
+  for app in "${apps[@]}"; do
+    bundle="$(ls -d DerivedData/proof/Build/Products/Debug-iphonesimulator/${app}.app 2>/dev/null)"
+    [ -n "$bundle" ] || { items+=("{\"name\":\"$app\",\"status\":\"failed\",\"notes\":\"not built\"}"); status=1; continue; }
+    id="$(defaults read "$PWD/$bundle/Info" CFBundleIdentifier)"
+    xcrun simctl install "$sim" "$bundle" && xcrun simctl launch "$sim" "$id" >/dev/null
+    sleep 5
+    # Masked: a fresh simulator draws the Dynamic Island and another doesn't.
+    if xcrun simctl io "$sim" screenshot --mask=black "$OUT/review-ios/$app.png" >/dev/null 2>&1; then
+      items+=("{\"name\":\"$app\",\"status\":\"new\",\"capture\":\"$app.png\",\"device\":\"$device\"}")
+    else
+      items+=("{\"name\":\"$app\",\"status\":\"failed\",\"notes\":\"no picture\"}"); status=1
+    fi
+    xcrun simctl terminate "$sim" "$id" >/dev/null 2>&1 || true
+  done
+  xcrun simctl shutdown "$sim" 2>/dev/null || true
 done
-xcrun simctl shutdown "$sim" 2>/dev/null || true
 joined="$(IFS=,; echo "${items[*]}")"
 cat > "$OUT/review-ios/manifest.json" <<JSON
 {"schema":1,"app":"AgentUI","version":"$VERSION","release":"${VERSION%.*}","commit":"$(git rev-parse HEAD)",
- "kind":"snapshots","target":"ios","device":"iPhone 17","orientation":"portrait",
+ "kind":"snapshots","target":"ios","device":"iPhone 17 and iPad Pro 13-inch (M5)","orientation":"portrait",
  "started":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","notes":"Tools/proof.sh: the demo apps' first screens",
  "items":[$joined]}
 JSON
