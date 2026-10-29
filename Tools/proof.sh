@@ -28,6 +28,7 @@ runtime="$(xcrun simctl list runtimes | grep -o 'com.apple.CoreSimulator.SimRunt
 # Each example on the device it is about: an iPad for the two that differ
 # only where there is room for a sidebar beside the content (on an iPhone
 # both are a list alone, and look the same), an iPhone for the rest.
+at="$(date -u -r "$(date -j -f '%Y-%m-%dT%H:%M:%S' 2007-01-09T09:41:00 +%s)" '+%Y-%m-%dT%H:%M:%S.000Z')"
 device_for() { case "$1" in SplitExample | StackExample) echo "iPad Pro 13-inch (M5)" ;; *) echo "iPhone 17" ;; esac; }
 items=()
 for device in "iPhone 17" "iPad Pro 13-inch (M5)"; do
@@ -46,9 +47,12 @@ for device in "iPhone 17" "iPad Pro 13-inch (M5)"; do
   # The status bar held still (~/Developer/AGENTS.md, "hold them still"): the
   # clock, the battery, Wi-Fi and cellular bars, and no carrier name or network
   # type, which otherwise drift from run to run. A whole date, for an iPad's
-  # status bar shows the day too.
-  xcrun simctl status_bar "$sim" override --time 2007-01-09T09:41:00 --dataNetwork wifi --wifiMode active --wifiBars 3 \
-    --cellularMode active --cellularBars 4 --operatorName "" --batteryState charged --batteryLevel 100
+  # status bar shows the day too: 9:41 on 9 January 2007 where the simulator
+  # is, in the one form simctl takes (UTC, with milliseconds).
+  if ! xcrun simctl status_bar "$sim" override --time "$at" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+    --cellularMode active --cellularBars 4 --operatorName "" --batteryState charged --batteryLevel 100; then
+    echo "$device: the status bar was not held still"; status=1
+  fi
   for app in "${apps[@]}"; do
     bundle="$(ls -d DerivedData/proof/Build/Products/Debug-iphonesimulator/${app}.app 2>/dev/null)"
     [ -n "$bundle" ] || { items+=("{\"name\":\"$app\",\"status\":\"failed\",\"notes\":\"not built\"}"); status=1; continue; }
