@@ -34,6 +34,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     let subSessions: [SubSession]
     let openSubSession: (SubSession) -> Void
     let endSubSession: ((SubSession) -> Void)?
+    let focus: FocusState<Bool>.Binding?
 
     /// - Parameters:
     ///   - messages: the record; the only thing that adds rows.
@@ -42,6 +43,11 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     ///   - busy: the agent is working; the status row spins and the composer offers Stop.
     ///   - sending: a message sent is not on the record yet; the send button says so.
     ///   - subSessions: the conversations open from this one, a row each above the composer.
+    ///   - focus: whether the composer's field has the keyboard, for an app
+    ///     that opens a page over the chat by other ways than the rows (a
+    ///     command typed): it sets this to false first. A page pushed over
+    ///     a focused field gets the keyboard back as the page is popped,
+    ///     and SwiftUI then leaves the composer under it.
     public init(messages: [TranscriptMessage], status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String,
                 emptyFootnote: String? = nil, draft: Binding<String>, placeholder: String = "Message the agent…",
@@ -50,6 +56,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 suggestions: @escaping (String) -> [AgentSuggestion] = { _ in [] }, pick: @escaping (AgentSuggestion) -> Void = { _ in },
                 dictation: (any Dictation)? = nil, subSessions: [SubSession] = [],
                 openSubSession: @escaping (SubSession) -> Void = { _ in }, endSubSession: ((SubSession) -> Void)? = nil,
+                focus: FocusState<Bool>.Binding? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -69,6 +76,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.subSessions = subSessions
         self.openSubSession = openSubSession
         self.endSubSession = endSubSession
+        self.focus = focus
         self.send = send
         self.stop = stop
         self.steer = steer
@@ -120,7 +128,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                               attachmentCount: attachmentCount, send: held(send), stop: stop, steer: steer.map(held),
                               sending: sending, suggestions: suggestions, pick: pick, dictation: dictation,
                               subSessions: subSessions, openSubSession: openSubSession, endSubSession: endSubSession,
-                              controls: controls, attachments: attachments)
+                              focus: focus, controls: controls, attachments: attachments)
                     .background(GeometryReader { proxy in
                         // Whole points, and only a real change: a measure
                         // that differs by a fraction would write again and
