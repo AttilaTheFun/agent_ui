@@ -1,16 +1,18 @@
 #!/bin/bash
 # AgentUI's proof, in a macOS VM leased from OS Server (xcode-27.0: Xcode
 # 27.0 and its iOS simulator): the four demo apps built and pictured by
-# Tools/proof.sh there, and each picture compared with the one kept for it.
+# Tools/proof.sh there, and each picture compared with the one kept for it
+# at the base (CI: the commit before, so a change that takes new pictures
+# shows as a change; else this commit).
 #
-#   Tools/ci/mac_vm_proof.sh --proof <dir> [--kind quick|full]
+#   Tools/ci/mac_vm_proof.sh --proof <dir> [--kind quick|full] [--base <revision>]
 #
 # The proof, in <dir>, as Reviews reads it from the run's `proof` artifact:
 #   screens/<name>.png  each demo app's first screen at this commit
-#   diffs/<name>.png    each that differs from its kept picture (Tests/Proof),
+#   diffs/<name>.png    each that differs from its picture kept at the base (Tests/Proof),
 #                       its changed pixels red (Tools/ci/snapshot_diff.swift,
 #                       built here)
-#   proof.json          {"commit", "ref", "kind", "run",
+#   proof.json          {"commit", "ref", "kind", "run", "base": {"commit"},
 #                        "screens": [{"name", "changed", "changedPixels"}]}
 # The script fails as Tools/proof.sh does, or when no picture comes back.
 #
@@ -25,13 +27,15 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 XCODEGEN_URL="https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip"
 XCODEGEN_SHA256="4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
 
-usage() { echo "usage: Tools/ci/mac_vm_proof.sh --proof <dir> [--kind quick|full]" >&2; exit 2; }
+usage() { echo "usage: Tools/ci/mac_vm_proof.sh --proof <dir> [--kind quick|full] [--base <revision>]" >&2; exit 2; }
 proof=""
 kind="quick"
+base="HEAD"
 while [ $# -gt 0 ]; do
     case "$1" in
         --proof) proof="${2:?--proof takes a folder}"; shift 2 ;;
         --kind) kind="${2:?--kind takes quick or full}"; shift 2 ;;
+        --base) base="${2:?--base takes a revision}"; shift 2 ;;
         *) usage ;;
     esac
 done
@@ -39,6 +43,7 @@ done
 case "$kind" in quick | full) ;; *) usage ;; esac
 
 commit="$(git -C "$ROOT" rev-parse HEAD)"
+base_commit="$(git -C "$ROOT" rev-parse --verify "$base^{commit}")" || { echo "mac_vm_proof.sh: no revision $base to compare with" >&2; exit 1; }
 ref="${PROOF_REF:-${GITHUB_REF:-refs/heads/$(git -C "$ROOT" branch --show-current)}}"
 OSS="/Applications/OS Server.app/Contents/Helpers/oss"
 [ -x "$OSS" ] || OSS="$(command -v oss)"
@@ -91,8 +96,11 @@ run() {
 }
 vm() { "$OSS" machine ssh "$lease" --identity="$work/key" -- "$@"; }
 
-# The diff tool and XcodeGen first: nothing leased if either fails.
+# The diff tool and XcodeGen first: nothing leased if either fails. And the
+# pictures kept at the base, what the screens are compared with.
 xcrun swiftc -O -o "$work/snapshot_diff" "$ROOT/Tools/ci/snapshot_diff.swift"
+mkdir "$work/base"
+git -C "$ROOT" archive "$base_commit" Tests/Proof | tar -x -C "$work/base"
 mkdir "$work/vm"
 curl -fsSL -o "$work/xcodegen.zip" "$XCODEGEN_URL"
 echo "$XCODEGEN_SHA256  $work/xcodegen.zip" | shasum -a 256 -c - > /dev/null
@@ -149,7 +157,7 @@ run "$OSS" machine download "$lease" --identity="$work/key" ci/out/review-ios "$
 echo "::endgroup::"
 release
 
-# The proof, from the pictures and the kept ones of the same commit.
+# The proof, from the pictures and the ones kept at the base.
 json() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 mkdir -p "$proof/screens" "$proof/diffs"
 screens=""
@@ -158,7 +166,7 @@ for picture in "$work/recorded"/*.png; do
     [ -e "$picture" ] || continue
     name="$(basename "$picture" .png)"
     cp "$picture" "$proof/screens/$name.png"
-    pixels="$("$work/snapshot_diff" "$ROOT/Tests/Proof/$name.png" "$picture" "$proof/diffs/$name.png")"
+    pixels="$("$work/snapshot_diff" "$work/base/Tests/Proof/$name.png" "$picture" "$proof/diffs/$name.png")"
     changed=false
     [ "$pixels" -eq 0 ] || changed=true
     screens="$screens${screens:+,}
@@ -172,13 +180,14 @@ cat > "$proof/proof.json" << EOF
   "ref": "$(json "$ref")",
   "kind": "$kind",
   "run": ${GITHUB_RUN_ID:-null},
+  "base": {"commit": "$base_commit"},
   "screens": [$screens
   ]
 }
 EOF
 cat "$proof/proof.json"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    printf '### Proof (%s) of %s\n\n| Screen | Against its kept picture |\n| --- | --- |\n%s' "$kind" "${commit:0:7}" "$summary" >> "$GITHUB_STEP_SUMMARY"
+    printf '### Proof (%s) of %s\n\n| Screen | Against its picture kept at %s |\n| --- | --- |\n%s' "$kind" "${commit:0:7}" "${base_commit:0:7}" "$summary" >> "$GITHUB_STEP_SUMMARY"
 fi
 
 if [ -z "$screens" ]; then
