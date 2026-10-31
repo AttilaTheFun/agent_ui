@@ -14,11 +14,35 @@ permissions:
 # leases what a job runs in from OS Server and which a fork's pull request
 # never reaches.
 jobs:
+  # Whether the pull request changes anything but documentation (Markdown,
+  # docs/, .notes/); a push to main always does. A job it skips passes.
+  changes:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, agent_ui-ci]
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "$BASE" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files="$(git diff --name-only "$BASE" HEAD)"
+          echo "$files"
+          if printf '%s\n' "$files" | awk '!/^([Dd]ocs\/|\.notes\/)|\.md$/ { code = 1 } END { exit !code }'; then code=true; else code=false; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   # The tests, in a macOS VM leased from OS Server (Tools/ci/mac_vm_tests.sh):
   # Xcode 27, the toolchain the code is written against, and the code held
   # to the Swift 6 mode with warnings as errors.
   test:
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: [self-hosted, agent_ui-ci]
     timeout-minutes: 60
     steps:
