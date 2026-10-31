@@ -95,6 +95,9 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     @State private var sendingNow = false
     /// The composer's height, for the thread to keep its bottom above it.
     @State private var composerHeight: CGFloat = 0
+    /// How much narrower the transcript's rows are than its list, each side,
+    /// which the composer takes too (RowGutters).
+    @State private var gutters = RowGutters()
     @State private var sendingEnds: Task<Void, Never>?
     /// The user typing: set by each change to the draft and let go a moment
     /// after the last, or at once when the draft empties (sent). The
@@ -129,7 +132,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         return TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                               emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote,
                               earlier: loadEarlier == nil ? nil : earlier, sending: sendingNow, composerHeight: composerHeight,
-                              typing: typing)
+                              typing: typing, gutters: gutters)
             .environment(\.branchFromMessage, branchFromHere == nil ? nil : branch)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
@@ -137,6 +140,10 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                               sending: sending, suggestions: suggestions, pick: pick, dictation: dictation,
                               subSessions: subSessions, openSubSession: openSubSession, endSubSession: endSubSession,
                               focus: focus, controls: controls, attachments: attachments)
+                    // Under the rows, not the whole list: a Mac's list keeps
+                    // room beside its rows that the composer takes too.
+                    .padding(.leading, gutters.leading)
+                    .padding(.trailing, gutters.trailing)
                     .background(GeometryReader { proxy in
                         // Whole points, and only a real change: a measure
                         // that differs by a fraction would write again and

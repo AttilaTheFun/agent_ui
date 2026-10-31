@@ -44,6 +44,8 @@ public struct TranscriptView: View {
     /// The user is typing in the composer: the thread's new rows wait until
     /// they pause, as they do while the user scrolls.
     let typing: Bool
+    /// Where the rows' width is told, for the composer to match (AgentView).
+    let gutters: RowGutters?
 
     public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
@@ -57,7 +59,8 @@ public struct TranscriptView: View {
     /// passes.
     init(messages: [TranscriptMessage], busy: Bool, status: [ActivityItem], activity: String?, error: String?,
          emptyTitle: String, emptyBody: String, emptyFootnote: String?, earlier loadEarlier: ViewAction?,
-         sending: Bool, composerHeight: CGFloat, typing: Bool = false) {
+         sending: Bool, composerHeight: CGFloat, typing: Bool = false, gutters: RowGutters? = nil) {
+        self.gutters = gutters
         self.sending = sending
         self.composerHeight = composerHeight
         self.typing = typing
@@ -81,6 +84,10 @@ public struct TranscriptView: View {
     /// The attachment a row asked to see whole: a picture, a video, a
     /// file. Set while its bytes are fetched (the tile shows that), then
     /// shown by the system's preview where there is one, else the viewer.
+    /// The list's frame and its last row's, in the window: how much
+    /// narrower the rows are is told to `gutters`.
+    @State private var listFrame: CGRect = .zero
+    @State private var rowFrame: CGRect = .zero
     @State private var openedImage: String?
     @State private var openedCalls: [TranscriptMessage]?
     #if canImport(QuickLook)
@@ -310,12 +317,22 @@ public struct TranscriptView: View {
                 }
                 StatusRow(busy: busy, status: status, activity: activity, error: error)
                     .transcriptCell()
+                    // A row's whole width, against the list's: the composer
+                    // lines up with the rows (RowGutters).
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                        rowFrame = frame
+                        gutters?.measure(list: listFrame, row: frame)
+                    }
                     .id(Self.bottom)
             }
             .listRowSeparator(.hidden)
             .plainListRow()
         }
         .listStyle(.plain)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            listFrame = frame
+            gutters?.measure(list: frame, row: rowFrame)
+        }
     }
 
     /// Drawn once its first rows have landed, over the held empty state.
