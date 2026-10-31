@@ -60,6 +60,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 dictation: (any Dictation)? = nil, subSessions: [SubSession] = [],
                 openSubSession: @escaping (SubSession) -> Void = { _ in }, endSubSession: ((SubSession) -> Void)? = nil,
                 focus: FocusState<Bool>.Binding? = nil, branchFromHere: ((String) -> Void)? = nil,
+                viewport: ((TranscriptViewport) -> Void)? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -81,6 +82,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.endSubSession = endSubSession
         self.focus = focus
         self.branchFromHere = branchFromHere
+        self.viewportChanged = viewport
         self.send = send
         self.stop = stop
         self.steer = steer
@@ -90,11 +92,20 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.pick = pick
     }
 
+    /// Where the reader is in the thread, told once they stop: for the app
+    /// to let go of rows far above it (TranscriptViewport).
+    private let viewportChanged: ((TranscriptViewport) -> Void)?
+    /// The callback, held across this view's passes.
+    @State private var viewportReport = ViewportReport()
+
     /// Set as a message is sent, for the moment the composer and the
     /// thread both change: the thread holds still through it.
     @State private var sendingNow = false
     /// The composer's height, for the thread to keep its bottom above it.
     @State private var composerHeight: CGFloat = 0
+    /// How much narrower the transcript's rows are than the composer's
+    /// space, which the composer keeps too (RowGutters).
+    @State private var gutters = RowGutters()
     @State private var sendingEnds: Task<Void, Never>?
     /// The user typing: set by each change to the draft and let go a moment
     /// after the last, or at once when the draft empties (sent). The
@@ -126,10 +137,12 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     public var body: some View {
         earlier.run = loadEarlier ?? {}
         branch.run = branchFromHere ?? { _ in }
+        viewportReport.run = viewportChanged ?? { _ in }
         return TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                               emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote,
                               earlier: loadEarlier == nil ? nil : earlier, sending: sendingNow, composerHeight: composerHeight,
-                              typing: typing)
+                              typing: typing, gutters: gutters,
+                              viewport: viewportChanged == nil ? nil : viewportReport)
             .environment(\.branchFromMessage, branchFromHere == nil ? nil : branch)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
@@ -137,6 +150,12 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                               sending: sending, suggestions: suggestions, pick: pick, dictation: dictation,
                               subSessions: subSessions, openSubSession: openSubSession, endSubSession: endSubSession,
                               focus: focus, controls: controls, attachments: attachments)
+                    // Under the rows, not the whole list: a Mac's list keeps
+                    // room beside its rows that the composer keeps too. The
+                    // bar's own width (outside the padding) is what the rows
+                    // are measured against.
+                    .padding(.trailing, gutters.trailing)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gutters.bar = $0 }
                     .background(GeometryReader { proxy in
                         // Whole points, and only a real change: a measure
                         // that differs by a fraction would write again and
