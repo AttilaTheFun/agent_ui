@@ -60,6 +60,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                 dictation: (any Dictation)? = nil, subSessions: [SubSession] = [],
                 openSubSession: @escaping (SubSession) -> Void = { _ in }, endSubSession: ((SubSession) -> Void)? = nil,
                 focus: FocusState<Bool>.Binding? = nil, branchFromHere: ((String) -> Void)? = nil,
+                viewport: ((TranscriptViewport) -> Void)? = nil,
                 @ViewBuilder controls: @escaping () -> Controls,
                 @ViewBuilder attachments: @escaping () -> Attachments) {
         self.messages = messages
@@ -81,6 +82,7 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.endSubSession = endSubSession
         self.focus = focus
         self.branchFromHere = branchFromHere
+        self.viewportChanged = viewport
         self.send = send
         self.stop = stop
         self.steer = steer
@@ -89,6 +91,12 @@ public struct AgentView<Controls: View, Attachments: View>: View {
         self.suggestions = suggestions
         self.pick = pick
     }
+
+    /// Where the reader is in the thread, told once they stop: for the app
+    /// to let go of rows far above it (TranscriptViewport).
+    private let viewportChanged: ((TranscriptViewport) -> Void)?
+    /// The callback, held across this view's passes.
+    @State private var viewportReport = ViewportReport()
 
     /// Set as a message is sent, for the moment the composer and the
     /// thread both change: the thread holds still through it.
@@ -129,10 +137,12 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     public var body: some View {
         earlier.run = loadEarlier ?? {}
         branch.run = branchFromHere ?? { _ in }
+        viewportReport.run = viewportChanged ?? { _ in }
         return TranscriptView(messages: messages, busy: busy, status: status, activity: activity, error: error,
                               emptyTitle: emptyTitle, emptyBody: emptyBody, emptyFootnote: emptyFootnote,
                               earlier: loadEarlier == nil ? nil : earlier, sending: sendingNow, composerHeight: composerHeight,
-                              typing: typing, gutters: gutters)
+                              typing: typing, gutters: gutters,
+                              viewport: viewportChanged == nil ? nil : viewportReport)
             .environment(\.branchFromMessage, branchFromHere == nil ? nil : branch)
             .agentComposerBar {
                 AgentComposer(draft: $draft, placeholder: placeholder, busy: busy,
