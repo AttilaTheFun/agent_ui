@@ -141,9 +141,12 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                               subSessions: subSessions, openSubSession: openSubSession, endSubSession: endSubSession,
                               focus: focus, controls: controls, attachments: attachments)
                     // Under the rows, not the whole list: a Mac's list keeps
-                    // room beside its rows that the composer takes too.
+                    // room beside its rows that the composer takes too. The
+                    // bar's own frame (outside the padding) is what the rows
+                    // are measured against.
                     .padding(.leading, gutters.leading)
                     .padding(.trailing, gutters.trailing)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { gutters.bar = $0 }
                     .background(GeometryReader { proxy in
                         // Whole points, and only a real change: a measure
                         // that differs by a fraction would write again and

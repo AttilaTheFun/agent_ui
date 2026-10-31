@@ -84,10 +84,6 @@ public struct TranscriptView: View {
     /// The attachment a row asked to see whole: a picture, a video, a
     /// file. Set while its bytes are fetched (the tile shows that), then
     /// shown by the system's preview where there is one, else the viewer.
-    /// The list's frame and its last row's, in the window: how much
-    /// narrower the rows are is told to `gutters`.
-    @State private var listFrame: CGRect = .zero
-    @State private var rowFrame: CGRect = .zero
     @State private var openedImage: String?
     @State private var openedCalls: [TranscriptMessage]?
     #if canImport(QuickLook)
@@ -317,22 +313,15 @@ public struct TranscriptView: View {
                 }
                 StatusRow(busy: busy, status: status, activity: activity, error: error)
                     .transcriptCell()
-                    // A row's whole width, against the list's: the composer
-                    // lines up with the rows (RowGutters).
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-                        rowFrame = frame
-                        gutters?.measure(list: listFrame, row: frame)
-                    }
+                    // A row's whole width, against the composer's bar: the
+                    // composer lines up with the rows (RowGutters).
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { gutters?.row = $0 }
                     .id(Self.bottom)
             }
             .listRowSeparator(.hidden)
             .plainListRow()
         }
         .listStyle(.plain)
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-            listFrame = frame
-            gutters?.measure(list: frame, row: rowFrame)
-        }
     }
 
     /// Drawn once its first rows have landed, over the held empty state.
