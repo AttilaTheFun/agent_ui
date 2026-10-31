@@ -10,17 +10,23 @@ concurrency:
 # Read only: no job here publishes or writes to the repository.
 permissions:
   contents: read
+# Every job on the repository's own runner (self-hosted, agent_ui-ci), which
+# leases what a job runs in from OS Server and which a fork's pull request
+# never reaches.
 jobs:
+  # The tests, in a macOS VM leased from OS Server (Tools/ci/mac_vm_tests.sh):
+  # Xcode 27, the toolchain the code is written against, and the code held
+  # to the Swift 6 mode with warnings as errors.
   test:
-    # Xcode 27, the toolchain the code is written against.
-    runs-on: xcode-27
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, agent_ui-ci]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      # The manifest keeps the Swift 5 language mode (other SwiftUIs build
-      # these sources and are not ready for 6); here the code is held to
-      # the Swift 6 mode, with warnings as errors.
-      - name: Test
-        run: swift test -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      # exec: the runner's cancel reaches the script's trap, which releases the VM.
+      - run: exec Tools/ci/mac_vm_tests.sh
 
   # The proof of each commit merged to main (a pull request runs its tests
   # alone): the demo apps' first screens, made in a macOS VM leased from OS
@@ -53,7 +59,7 @@ jobs:
   # revision); Reviews holds a release until it passes.
   pins:
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, agent_ui-ci]
     steps:
       - uses: actions/checkout@v4
       - run: Tools/released_pins.sh
