@@ -315,7 +315,7 @@ public struct TranscriptView: View {
                     .transcriptCell()
                     // A row's whole width, against the composer's bar: the
                     // composer lines up with the rows (RowGutters).
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { gutters?.row = $0 }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gutters?.row = $0 }
                     .id(Self.bottom)
             }
             .listRowSeparator(.hidden)
