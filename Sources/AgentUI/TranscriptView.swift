@@ -44,6 +44,8 @@ public struct TranscriptView: View {
     /// The user is typing in the composer: the thread's new rows wait until
     /// they pause, as they do while the user scrolls.
     let typing: Bool
+    /// Where the reader is, told once they stop (TranscriptViewport).
+    let viewport: ViewportReport?
 
     public init(messages: [TranscriptMessage], busy: Bool = false, status: [ActivityItem] = [], activity: String? = nil,
                 error: String? = nil, emptyTitle: String = "What should we build?", emptyBody: String, emptyFootnote: String? = nil,
@@ -57,7 +59,8 @@ public struct TranscriptView: View {
     /// passes.
     init(messages: [TranscriptMessage], busy: Bool, status: [ActivityItem], activity: String?, error: String?,
          emptyTitle: String, emptyBody: String, emptyFootnote: String?, earlier loadEarlier: ViewAction?,
-         sending: Bool, composerHeight: CGFloat, typing: Bool = false) {
+         sending: Bool, composerHeight: CGFloat, typing: Bool = false, viewport: ViewportReport? = nil) {
+        self.viewport = viewport
         self.sending = sending
         self.composerHeight = composerHeight
         self.typing = typing
@@ -163,6 +166,41 @@ public struct TranscriptView: View {
     }
 
     /// Keeps `row` at the top while the page going in above it is laid out.
+    /// A row come on screen or gone from it: the viewport told once the
+    /// reader stops.
+    private func onScreen(_ block: String, _ shown: Bool) {
+        if shown { stage.onScreen.insert(block) } else { stage.onScreen.remove(block) }
+        tellViewport()
+    }
+
+    /// The first row on screen, by its block's id, among `rows`.
+    private func topOnScreen(of rows: [TranscriptMessage]) -> TranscriptBlock? {
+        TranscriptBlock.blocks(rows).first { stage.onScreen.contains($0.id) }
+    }
+
+    /// Tells where the reader is, a moment after the rows on screen last
+    /// changed and once the reader is not busy with the thread: not while
+    /// they scroll, and only when it changed.
+    private func tellViewport() {
+        guard viewport != nil else { return }
+        stage.viewportEnds?.cancel()
+        stage.viewportEnds = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard !userBusy else { return tellViewport() }
+            let top = topOnScreen(of: shown).map { block -> String in
+                switch block {
+                case .message(let message): message.id
+                case .calls(let run): run.first?.id ?? ""
+                }
+            }
+            let now = TranscriptViewport(topID: top, followingEnd: following)
+            guard now != stage.toldViewport else { return }
+            stage.toldViewport = now
+            viewport?(now)
+        }
+    }
+
     private func keep(_ row: String) {
         stage.keptAtTop = row
         stage.keptEnds?.cancel()
@@ -213,6 +251,12 @@ public struct TranscriptView: View {
     static func firstKept(of old: [TranscriptMessage], in new: [TranscriptMessage]) -> String? {
         let rows = Set(TranscriptBlock.blocks(new).map(\.id))
         return TranscriptBlock.blocks(Array(old.prefix(8))).map(\.id).first { rows.contains($0) }
+    }
+
+    /// Whether `new` is `old` with rows taken away from its start.
+    static func trims(_ new: [TranscriptMessage], from old: [TranscriptMessage]) -> Bool {
+        guard let first = new.first, let last = old.last, new.last?.id == last.id, old.first?.id != first.id else { return false }
+        return old.contains { $0.id == first.id }
     }
 
     /// Whether `new` is `old` with rows added after its last.
@@ -303,10 +347,16 @@ public struct TranscriptView: View {
                 // In the column, at the rows' left edge, as they will be.
                 if shown.isEmpty { emptyState.transcriptCell() }
                 ForEach(TranscriptBlock.blocks(shown)) { block in
-                    switch block {
-                    case .message(let message): TranscriptRow(message: message).transcriptCell()
-                    case .calls(let run): ToolCallsRow(run: run).transcriptCell()
+                    Group {
+                        switch block {
+                        case .message(let message): TranscriptRow(message: message).transcriptCell()
+                        case .calls(let run): ToolCallsRow(run: run).transcriptCell()
+                        }
                     }
+                    // Where the reader is (the viewport, and the row kept in
+                    // place when rows above it go).
+                    .onAppear { onScreen(block.id, true) }
+                    .onDisappear { onScreen(block.id, false) }
                 }
                 StatusRow(busy: busy, status: status, activity: activity, error: error)
                     .transcriptCell()
@@ -452,6 +502,7 @@ public struct TranscriptView: View {
             stage.typing = now
             if !now { takeWhenQuiet(toBottom) }
         }
+        .onChange(of: following) { _, _ in tellViewport() }
         .onScrollPhaseChange { _, phase in
             // The user's: a finger or a trackpad on the list, or its
             // coasting after; the thread's own scrolls animate.
@@ -510,6 +561,11 @@ public struct TranscriptView: View {
             let added = Self.newRows(in: new, after: shown)
             if stage.earlierInView, Self.prepends(new, to: shown), let kept = Self.firstKept(of: shown, in: new) {
                 keep(kept)
+            }
+            // Rows let go of above what is read (the app keeps only so
+            // many): what is read stays where it is.
+            if Self.trims(new, from: shown), let top = topOnScreen(of: new) {
+                keep(top.id)
             }
             shown = new
             showPill(adding: added)
