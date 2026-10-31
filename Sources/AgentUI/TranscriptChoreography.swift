@@ -37,6 +37,13 @@ final class TranscriptChoreography {
     /// thread (scrolling, typing, the keyboard moving): taken all at once a
     /// moment after they stop, so the thread never moves under them.
     var waiting: [TranscriptMessage]?
+    /// The rows on screen now, by their block's id (from their appearing
+    /// and disappearing): where the reader is, and the row kept in place
+    /// when rows above it go.
+    var onScreen: Set<String> = []
+    /// The viewport as last told (TranscriptViewport), not told again
+    /// unchanged.
+    var toldViewport: TranscriptViewport?
 
     /// What ends each: one of each at a time, so a second settling or a
     /// second arrival takes over from the first instead of being cut short
@@ -47,4 +54,5 @@ final class TranscriptChoreography {
     var arrivalEnds: Task<Void, Never>?
     var pillEnds: Task<Void, Never>?
     var quietEnds: Task<Void, Never>?
+    var viewportEnds: Task<Void, Never>?
 }

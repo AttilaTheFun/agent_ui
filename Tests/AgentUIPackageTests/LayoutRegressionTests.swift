@@ -106,6 +106,18 @@ final class EarlierRowsTests: XCTestCase {
         XCTAssertFalse(TranscriptView.prepends([row("x")], to: []))
     }
 
+    /// Rows let go of above what is read (the app keeps only so many): the
+    /// row on screen at the top is kept in place, as it is when a page goes
+    /// in above it.
+    func testRowsTakenFromTheStartAreATrim() {
+        let old = [row("a"), row("b"), row("c"), row("d")]
+        XCTAssertTrue(TranscriptView.trims([row("c"), row("d")], from: old))
+        XCTAssertFalse(TranscriptView.trims(old, from: old))
+        XCTAssertFalse(TranscriptView.trims([row("b"), row("c")], from: old), "the last row gone is no trim")
+        XCTAssertFalse(TranscriptView.trims([row("x"), row("d")], from: old), "a first row it never had is a replacement")
+        XCTAssertFalse(TranscriptView.trims([row("c"), row("d"), row("e")], from: old), "rows after the last too: not a trim alone")
+    }
+
     func testTheRowKeptIsTheOldFirst() {
         let old = [row("a"), row("b")]
         XCTAssertEqual(TranscriptView.firstKept(of: old, in: [row("x")] + old), "a")
