@@ -3,9 +3,12 @@ on:
   pull_request:
   push:
     branches: [main]
-# A newer push to a pull request cancels its run before, if unfinished.
+  # The proof, by hand: to propose a release, or to bisect.
+  workflow_dispatch:
+# A newer push to a pull request cancels its run before, if unfinished. A
+# proof run is its own: it never waits on, or replaces, main's.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.event_name == 'workflow_dispatch' && format('proof-{0}', github.run_id) || format('ci-{0}', github.event.pull_request.number || github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 # Read only: no job here publishes or writes to the repository.
 permissions:
@@ -52,24 +55,32 @@ jobs:
       # exec: the runner's cancel reaches the script's trap, which releases the VM.
       - run: exec Tools/ci/mac_vm_tests.sh
 
-  # The proof of each commit merged to main (a pull request runs its tests
-  # alone): the demo apps' first screens, made in a macOS VM leased from OS
-  # Server (Tools/ci/mac_vm_proof.sh), and how each differs from its
-  # picture kept at the commit before (Tests/Proof). Reviews reads the
-  # `proof` artifact from GitHub: a release is proposed on a commit whose
-  # proof is in, and that is the proof reviewed. Within the hour.
+  # The proof, only when asked for by hand (workflow_dispatch), which is how
+  # an agent proposes a release; pull requests and main's commits run their
+  # tests alone. The demo apps' first screens, made in a macOS VM leased from
+  # OS Server (Tools/ci/mac_vm_proof.sh), and how each differs from its
+  # picture kept at the previous release (Tests/Proof at the newest v* tag
+  # before the commit, else the commit before). Reviews reads the `proof`
+  # artifact from GitHub by commit: no release without a proof of its
+  # commit. To bisect, push a branch at an earlier commit and run the
+  # workflow on it.
   proof:
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, agent_ui-ci]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
-          # The commit before too: its kept pictures are what the screens are compared with.
-          fetch-depth: 2
+          # The history and the tags: the previous release's kept pictures
+          # are what the screens are compared with.
+          fetch-depth: 0
+          fetch-tags: true
       - name: The demo apps in a macOS VM, and the proof
         # exec: the runner's cancel reaches the script's trap, which releases the VM.
-        run: exec Tools/ci/mac_vm_proof.sh --kind full --base HEAD^ --proof "$RUNNER_TEMP/proof"
+        run: |
+          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^ 2> /dev/null || git rev-parse HEAD^)"
+          echo "Compared with $base"
+          exec Tools/ci/mac_vm_proof.sh --kind full --base "$base" --proof "$RUNNER_TEMP/proof"
       # The proof whether the apps came up or not: a broken screen is what it's for.
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
