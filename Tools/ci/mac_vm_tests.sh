@@ -1,6 +1,6 @@
 #!/bin/bash
-# AgentUI's tests, in a macOS VM leased from OS Server (xcode-27.0: Xcode
-# 27.0): `swift test`, the code held to the Swift 6 mode with warnings as
+# AgentUI's tests, in a macOS VM leased from OS Server (xcode_27_2: Xcode
+# 27.2): `swift test`, the code held to the Swift 6 mode with warnings as
 # errors (the manifest keeps the Swift 5 language mode: other SwiftUIs build
 # these sources and are not ready for 6).
 #
@@ -19,7 +19,7 @@ mac_vm_steps << 'STEPS'
         ;;
 STEPS
 
-echo "::group::A macOS VM (xcode-27.0)"
+echo "::group::A macOS VM (xcode_27_2)"
 mac_vm_lease
 mac_vm_copy_tree
 echo "::endgroup::"

@@ -1,6 +1,6 @@
 #!/bin/bash
-# AgentUI's proof, in a macOS VM leased from OS Server (xcode-27.0: Xcode
-# 27.0 and its iOS simulator): the four demo apps built and pictured by
+# AgentUI's proof, in a macOS VM leased from OS Server (xcode_27_2: Xcode
+# 27.2 and its iOS simulator): the four demo apps built and pictured by
 # Tools/proof.sh there, and each picture compared with the one kept for it
 # at the base (CI: the commit before, so a change that takes new pictures
 # shows as a change; else this commit).
@@ -106,10 +106,10 @@ curl -fsSL -o "$work/xcodegen.zip" "$XCODEGEN_URL"
 echo "$XCODEGEN_SHA256  $work/xcodegen.zip" | shasum -a 256 -c - > /dev/null
 unzip -q -d "$work/vm" "$work/xcodegen.zip"
 
-echo "::group::A macOS VM (xcode-27.0)"
+echo "::group::A macOS VM (xcode_27_2)"
 # A key of the run's own for the VM's SSH, gone with the run.
 ssh-keygen -q -t ed25519 -N '' -C agent_ui-ci -f "$work/key"
-run "$OSS" machine lease macos --config=xcode-27.0 --minutes=60 --wait --key="$work/key.pub" --exports > "$work/lease"
+run "$OSS" machine lease macos --config=xcode_27_2 --minutes=60 --wait --key="$work/key.pub" --exports > "$work/lease"
 lease="$(. "$work/lease"; printf '%s' "$OSS_ID")"
 echo "Leased $lease"
 # Renewed every ten minutes; told to stop, it stops its sleep too.
