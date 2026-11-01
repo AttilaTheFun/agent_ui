@@ -5,10 +5,12 @@ on:
     branches: [main]
   # The proof, by hand: to propose a release, or to bisect.
   workflow_dispatch:
-# A newer push to a pull request cancels its run before, if unfinished. A
-# proof run is its own: it never waits on, or replaces, main's.
+# A newer push to a pull request cancels its run before, if unfinished.
+# Every other run (a commit on main, a proof by hand) is a group of its own:
+# GitHub keeps one pending run per group and cancels the rest, so main's
+# runs sharing one left a commit queued between two others unchecked.
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && format('proof-{0}', github.run_id) || format('ci-{0}', github.event.pull_request.number || github.ref) }}
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 # Read only: no job here publishes or writes to the repository.
 permissions:
