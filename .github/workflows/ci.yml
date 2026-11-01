@@ -13,15 +13,17 @@ concurrency:
 # Read only: no job here publishes or writes to the repository.
 permissions:
   contents: read
-# Every job on the repository's own runner (self-hosted, agent_ui-ci), which
-# leases what a job runs in from OS Server and which a fork's pull request
-# never reaches.
+# The jobs that only lease what they run in (changes, test, pins) run on OS
+# Server's single-use runners (self-hosted, agent_ui-jit): each a fresh Linux
+# container with `oss` on its PATH. The proof stays on the repository's own
+# runner (self-hosted, agent_ui-ci), which builds its diff tool with Xcode's
+# swiftc. No self-hosted runner ever runs a fork's pull request.
 jobs:
   # Whether the pull request changes anything but documentation (Markdown,
   # docs/, .notes/); a push to main always does. A job it skips passes.
   changes:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, agent_ui-ci]
+    runs-on: [self-hosted, agent_ui-jit]
     timeout-minutes: 5
     outputs:
       code: ${{ steps.diff.outputs.code }}
@@ -46,7 +48,7 @@ jobs:
   test:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: [self-hosted, agent_ui-ci]
+    runs-on: [self-hosted, agent_ui-jit]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +96,7 @@ jobs:
   # revision); Reviews holds a release until it passes.
   pins:
     if: github.event_name == 'push'
-    runs-on: [self-hosted, agent_ui-ci]
+    runs-on: [self-hosted, agent_ui-jit]
     steps:
       - uses: actions/checkout@v4
       - run: Tools/released_pins.sh

@@ -5,7 +5,8 @@
 # alone: leased for an hour,
 # renewed while it runs, released however it ends (a kill nothing can trap
 # leaves it an hour at most). The checkout's tree goes in, with the
-# runner's bazelisk where it has one. As Visor's tools/ci/mac_vm.sh, with
+# runner's bazelisk where the runner is a Mac with one (a Linux runner's
+# couldn't run in the VM). As Visor's tools/ci/mac_vm.sh, with
 # AgentUI's folder.
 #
 #   ROOT=<the checkout>
@@ -37,7 +38,8 @@ OSS="/Applications/OS Server.app/Contents/Helpers/oss"
 
 mac_vm_start() {
     me="$(basename "$0")"
-    bazelisk="$(command -v bazelisk || true)"
+    bazelisk=""
+    [ "$(uname -s)" != Darwin ] || bazelisk="$(command -v bazelisk || true)"
     key_comment="${1:?mac_vm_start takes a comment for the SSH key}"
     work="$(mktemp -d)"
     chmod 700 "$work"
