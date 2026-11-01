@@ -81,17 +81,20 @@ to one focused change, and say in it how the change was verified.
 
 ## A release's proof
 
-CI makes it, for each commit merged to main (a pull request runs its tests
-alone), within the hour. The `proof` job runs `Tools/ci/mac_vm_proof.sh` on
+CI makes it, only when asked for by hand (since 2026-11-01, for CI's time):
+an agent runs CI's `workflow_dispatch` on main to propose a release (pull
+requests and main's commits run their tests alone). The `proof` job runs `Tools/ci/mac_vm_proof.sh` on
 the repository's own runner (`agent_ui-ci`). The script leases a macOS VM from OS Server (`xcode-27.0`), copies
 the committed tree in, and runs `Tools/proof.sh` there, which builds the four
 example apps for the iPhone simulator and pictures each one's first screen.
 It compares each picture with the one kept for it in `Tests/Proof` at the
-commit before, so a commit that takes new pictures shows the change, and
-uploads the `proof` artifact: `screens/`, `diffs/` (only what changed) and
-`proof.json`. Reviews reads it straight from GitHub by commit: a release is
-proposed on a main commit whose proof is in, and that proof is the one
-reviewed. Nothing is filed by hand. A change that is meant to look
+previous release (the newest `v*` tag before the commit, else the commit
+before), so it shows every change since, and uploads the `proof` artifact:
+`screens/`, `diffs/` (only what changed) and `proof.json`. Reviews reads it
+straight from GitHub by commit: no release is made without a proof of its
+commit, and that proof is the one reviewed. To bisect a regression, prove
+an earlier commit after the fact: push a branch at it and run the workflow
+on that branch. Nothing is filed by hand. A change that is meant to look
 different takes its new screens into `Tests/Proof` in its pull request
 (`Tools/proof.sh` makes them), or right after from main's `proof` artifact.
 
