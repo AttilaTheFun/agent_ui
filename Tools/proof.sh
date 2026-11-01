@@ -24,7 +24,9 @@ for app in "${APPS[@]}"; do
     -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData/proof CODE_SIGNING_ALLOWED=NO \
     > "$OUT/build-$app.log" 2>&1 || { echo "$app: build failed (see $OUT/build-$app.log)"; status=1; }
 done
-runtime="$(xcrun simctl list runtimes | grep -o 'com.apple.CoreSimulator.SimRuntime.iOS-[0-9-]*' | tail -1)"
+# The newest iOS runtime, major and minor only: a device's own runtime
+# (iOS-27-2-iPhone19-4) would otherwise end the match at a dash.
+runtime="$(xcrun simctl list runtimes | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9]+-[0-9]+' | tail -1)"
 # Each example on the device it is about: an iPad for the two that differ
 # only where there is room for a sidebar beside the content (on an iPhone
 # both are a list alone, and look the same), an iPhone for the rest.
