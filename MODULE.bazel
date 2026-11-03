@@ -1,0 +1,31 @@
+"""AgentUI's tests on a Mac, built anywhere: Bazel builds them as
+macos_unit_test bundles on Linux too (rules_applecross), which CI runs on a
+slot of OS Server's primary Mac (Tools/ci/mac_vm_tests.sh). SwiftPM's
+Package.swift stays what the package is built and used by; this module is
+for CI."""
+
+module(name = "agent_ui")
+
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_swift", version = "4.2.2")
+bazel_dep(name = "apple_support", version = "2.10.1.applecross.1")
+bazel_dep(name = "rules_apple", version = "5.3.1.applecross.3")
+
+# Apple's targets built on Linux (bazel_registry's preset: rules_apple and
+# apple_support with rules_applecross's patches in): Xcode 27.2's SDKs, from
+# an archive the builder's downloader config names (OS Server's files, by
+# SHA-256), and the Swift that built them.
+bazel_dep(name = "rules_applecross", version = "0.0.3.a4d9f15")
+
+apple_cross_toolchain = use_extension("@rules_applecross//toolchain:extensions.bzl", "apple_cross_toolchain")
+apple_cross_toolchain.configure(
+    name = "apple_cross_toolchain",
+    apple_sdk_urls = ["https://apple-sdks.invalid/apple-sdks-27.2.tar.gz"],
+    xcode_version = "27.2",
+)
+use_repo(apple_cross_toolchain, "apple_cross_toolchain")
+
+register_toolchains(
+    "@rules_applecross//toolchain:apple_bundling_on_linux",
+    "@rules_applecross//toolchain:apple_bundling_on_macos",
+)

@@ -6,3 +6,8 @@ DerivedData/
 # Generated: xcodegen generate --spec Examples/project.yml
 *.xcodeproj
 .proof/
+# Bazel builds this package as a dependency (rules_swift_package_manager,
+# which drops these files), and its own MODULE.bazel builds its tests for
+# CI's Mac slot; never commit a local Bazel run's symlinks or lock file.
+bazel-*
+MODULE.bazel.lock
