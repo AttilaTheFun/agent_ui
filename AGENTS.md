@@ -33,8 +33,13 @@ to one focused change, and say in it how the change was verified.
 
 ## Rules
 
-- Every target imports SwiftUI and nothing else. No app code, no Bazel, no
-  third-party dependencies. It is built here against Apple's SwiftUI and
+- Every target imports SwiftUI and nothing else. No app code, no
+  third-party dependencies, and no Bazel in what consumers build: other
+  repositories take the package through SwiftPM or
+  rules_swift_package_manager (which drops its Bazel files). Its own
+  MODULE.bazel and BUILD.bazel are CI's alone, building the test targets as
+  macOS bundles on Linux to run on a slot (Logan, 2026-11-03); a target or
+  test added to Package.swift goes in BUILD.bazel too. It is built here against Apple's SwiftUI and
   elsewhere (wasm, Android, Linux, Windows) against a
   reimplementation of the same API, so:
   - Use only SwiftUI API that exists on iOS 18 / macOS 15, behind
@@ -52,7 +57,10 @@ to one focused change, and say in it how the change was verified.
   SwiftUIs these sources build against are not ready for 6; CI holds the
   code to the Swift 6 mode with warnings as errors (`swift test -Xswiftc
   -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors`), so run that
-  before pushing. No `@unchecked Sendable`, and no shared singletons for
+  before pushing. CI builds the tests so with Bazel on Linux
+  (BUILD.bazel's copts) and runs them on a slot of OS Server's primary Mac
+  (Tools/ci/mac_vm_tests.sh; AgentUIPackageTests, which draws windows, in
+  its GUI session). No `@unchecked Sendable`, and no shared singletons for
   view state: state a row needs from its thread goes through the
   environment (`openedTranscriptImage`).
 - Views are main-actor isolated by their conformance to `View`, on Apple's

@@ -1,0 +1,96 @@
+# AgentUI for Bazel: the same targets as Package.swift, and its two test
+# targets as macos_unit_test bundles, which CI builds on Linux
+# (rules_applecross) and runs on a slot of OS Server's primary Mac
+# (Tools/ci/mac_vm_tests.sh). Swift 6 mode with warnings as errors, as CI's
+# `swift test` had it. Consumers take the package through SwiftPM or
+# rules_swift_package_manager, which drops these files.
+
+load("@rules_apple//apple:macos.bzl", "macos_unit_test")
+load("@rules_swift//swift:swift_library.bzl", "swift_library")
+
+STRICT = ["-swift-version", "6", "-warnings-as-errors"]
+
+swift_library(
+    name = "MessagesCore",
+    srcs = glob(["Sources/MessagesCore/**/*.swift"]),
+    copts = STRICT,
+    module_name = "MessagesCore",
+)
+
+swift_library(
+    name = "InboxUI",
+    srcs = glob(["Sources/InboxUI/**/*.swift"]),
+    copts = STRICT,
+    module_name = "InboxUI",
+    deps = [":MessagesCore"],
+)
+
+swift_library(
+    name = "MessagesUI",
+    srcs = glob(["Sources/MessagesUI/**/*.swift"]),
+    copts = STRICT,
+    module_name = "MessagesUI",
+    deps = [":MessagesCore"],
+)
+
+swift_library(
+    name = "MarkdownViews",
+    srcs = glob(["Sources/MarkdownViews/**/*.swift"]),
+    copts = STRICT,
+    module_name = "MarkdownViews",
+)
+
+swift_library(
+    name = "AgentUI",
+    srcs = glob(["Sources/AgentUI/**/*.swift"]),
+    copts = STRICT,
+    module_name = "AgentUI",
+    deps = [":MarkdownViews"],
+)
+
+swift_library(
+    name = "NavigationUI",
+    srcs = glob(["Sources/NavigationUI/**/*.swift"]),
+    copts = STRICT,
+    module_name = "NavigationUI",
+)
+
+swift_library(
+    name = "AgentUIPackageTests_lib",
+    testonly = True,
+    srcs = glob(["Tests/AgentUIPackageTests/**/*.swift"]),
+    copts = STRICT,
+    module_name = "AgentUIPackageTests",
+    deps = [
+        ":AgentUI",
+        ":MarkdownViews",
+    ],
+)
+
+# Draws its views in windows (NSHostingView): on a slot, in the primary's
+# GUI session (`--gui`).
+macos_unit_test(
+    name = "AgentUIPackageTests",
+    minimum_os_version = "15.0",
+    tags = ["gui"],
+    deps = [":AgentUIPackageTests_lib"],
+)
+
+swift_library(
+    name = "MessagesUIPackageTests_lib",
+    testonly = True,
+    srcs = glob(["Tests/MessagesUIPackageTests/**/*.swift"]),
+    copts = STRICT,
+    module_name = "MessagesUIPackageTests",
+    deps = [
+        ":InboxUI",
+        ":MessagesUI",
+        ":NavigationUI",
+    ],
+)
+
+macos_unit_test(
+    name = "MessagesUIPackageTests",
+    minimum_os_version = "15.0",
+    deps = [":MessagesUIPackageTests_lib"],
+)
