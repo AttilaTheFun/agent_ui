@@ -364,11 +364,15 @@ public struct TranscriptView: View {
                 }
                 StatusRow(busy: busy, status: status, activity: activity, error: error)
                     .transcriptCell()
-                    // A row's whole width, against the composer's bar: the
-                    // composer lines up with the rows (RowGutters).
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gutters?.row = $0 }
                     .id(Self.bottom)
             }
+            // Every row's whole width (they are all as wide), against the
+            // composer's bar: the composer lines up with the rows
+            // (RowGutters). Any row on screen keeps it current. The bottom
+            // row alone, scrolled out of view, kept the width it had before
+            // the sidebar was collapsed, and the composer sat half the
+            // sidebar's width to the left of the transcript.
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gutters?.row = $0 }
             .listRowSeparator(.hidden)
             .plainListRow()
         }
