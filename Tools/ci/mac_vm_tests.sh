@@ -74,10 +74,19 @@ flags="--config=apple_on_linux --downloader_config=$work/downloader.cfg"
 
 echo "::group::The tests, built on Linux"
 cd "$ROOT"
+echo "This container: $(nproc) CPUs, $(awk '/MemTotal/ { printf "%.1f GB", $2 / 1048576 }' /proc/meminfo 2> /dev/null) memory"
 targets="$(bazel query 'kind(macos_unit_test, //...)' 2> /dev/null)"
 gui="$(bazel query 'attr(tags, "\bgui\b", kind(macos_unit_test, //...))' 2> /dev/null)"
+# And how much memory the build took (Tools/ci/memory_watch.sh), said
+# whether it worked or not: a build the container's memory cut short is
+# what the figure is for.
+. "$ROOT/Tools/ci/memory_watch.sh"
+memory_watch_start
+built=0
 # shellcheck disable=SC2086 # one target a word
-run bazel build $flags --curses=no $targets
+run bazel build $flags --curses=no $targets || built=$?
+memory_watch_report "the tests' build"
+[ "$built" -eq 0 ] || exit "$built"
 root="$(bazel info $flags execution_root 2> /dev/null)"
 echo "::endgroup::"
 
