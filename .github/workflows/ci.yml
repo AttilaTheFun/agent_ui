@@ -15,11 +15,11 @@ concurrency:
 # Read only: no job here publishes or writes to the repository.
 permissions:
   contents: read
-# The jobs that only lease what they run in (changes, test, pins) run on OS
-# Server's single-use runners (self-hosted, agent_ui-jit): each a fresh Linux
-# container with `oss` on its PATH. The proof stays on the repository's own
-# runner (self-hosted, agent_ui-ci), which builds its diff tool with Xcode's
-# swiftc. No self-hosted runner ever runs a fork's pull request.
+# Every job only leases what it runs in, and runs on OS Server's single-use
+# runners (self-hosted, agent_ui-jit): each a fresh Linux container with
+# `oss` on its PATH. The proof's diff tool is built and run in the macOS VM
+# it leases (Tools/ci/mac_vm_proof.sh). No self-hosted runner ever runs a
+# fork's pull request.
 jobs:
   # Whether the pull request changes anything but documentation (Markdown,
   # docs/, .notes/); a push to main always does. A job it skips passes.
@@ -70,7 +70,7 @@ jobs:
   # workflow on it.
   proof:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, agent_ui-ci]
+    runs-on: [self-hosted, agent_ui-jit]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
