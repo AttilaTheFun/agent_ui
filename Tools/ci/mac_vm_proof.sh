@@ -11,7 +11,7 @@
 #   screens/<name>.png  each demo app's first screen at this commit
 #   diffs/<name>.png    each that differs from its picture kept at the base (Tests/Proof),
 #                       its changed pixels red (Tools/ci/snapshot_diff.swift,
-#                       built here)
+#                       built and run in the VM: CoreGraphics)
 #   proof.json          {"commit", "ref", "kind", "run", "base": {"commit"},
 #                        "screens": [{"name", "changed", "changedPixels"}]}
 # The script fails as Tools/proof.sh does, or when no picture comes back.
@@ -21,7 +21,10 @@
 # The VM is the script's alone: leased for an hour, renewed while it runs,
 # released however it ends (a kill nothing can trap leaves it an hour at
 # most). The committed tree goes in (git archive HEAD), with XcodeGen, which
-# the image may not have: its release, checked against the sum below.
+# the image may not have (its release, checked against the sum below), and
+# the pictures kept at the base; the screens, their diffs and how many
+# pixels each changed come back. The runner needs nothing of a Mac's
+# (CI's: agent_ui-jit, a Linux container).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 XCODEGEN_URL="https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip"
@@ -96,15 +99,15 @@ run() {
 }
 vm() { "$OSS" machine ssh "$lease" --identity="$work/key" -- "$@"; }
 
-# The diff tool and XcodeGen first: nothing leased if either fails. And the
-# pictures kept at the base, what the screens are compared with.
-xcrun swiftc -O -o "$work/snapshot_diff" "$ROOT/Tools/ci/snapshot_diff.swift"
-mkdir "$work/base"
-git -C "$ROOT" archive "$base_commit" Tests/Proof | tar -x -C "$work/base"
-mkdir "$work/vm"
-curl -fsSL -o "$work/xcodegen.zip" "$XCODEGEN_URL"
-echo "$XCODEGEN_SHA256  $work/xcodegen.zip" | shasum -a 256 -c - > /dev/null
-unzip -q -d "$work/vm" "$work/xcodegen.zip"
+# SHA-256 as the runner has it: coreutils' on Linux, Perl's on a Mac.
+sum256() { if command -v sha256sum > /dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+
+# XcodeGen first: nothing leased if it can't be had. And the pictures kept
+# at the base, what the screens are compared with, in the VM.
+mkdir -p "$work/vm/base"
+git -C "$ROOT" archive "$base_commit" Tests/Proof | tar -x -C "$work/vm/base"
+curl -fsSL -o "$work/vm/xcodegen.zip" "$XCODEGEN_URL"
+echo "$XCODEGEN_SHA256  $work/vm/xcodegen.zip" | sum256 -c - > /dev/null
 
 echo "::group::A macOS VM (xcode_27_2)"
 # A key of the run's own for the VM's SSH, gone with the run.
@@ -128,40 +131,66 @@ echo "Leased $lease"
 renewer=$!
 for _ in $(seq 1 30); do vm true 2> /dev/null && break; sleep 5; done
 
-# The tree as committed, XcodeGen, and what the VM runs, into ~/ci there.
+# The tree as committed, XcodeGen, the kept pictures, and what the VM runs,
+# into ~/ci there.
 git -C "$ROOT" archive --format=tar.gz -o "$work/vm/tree.tar.gz" HEAD
 cat > "$work/vm/in_vm.sh" << 'EOF'
 #!/bin/bash
-# In the VM, in ~/ci: the tree in src/, XcodeGen in xcodegen/.
+# In the VM, in ~/ci: the tree in src/, XcodeGen in xcodegen/, the pictures
+# kept at the base in base/Tests/Proof.
 set -uo pipefail
 cd ~/ci
 export PATH="$HOME/ci/xcodegen/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 case "$1" in
     unpack)
-        mkdir -p src && tar -xzf tree.tar.gz -C src && chmod +x xcodegen/bin/xcodegen || exit
+        mkdir -p src && tar -xzf tree.tar.gz -C src || exit
+        unzip -q -o xcodegen.zip && chmod +x xcodegen/bin/xcodegen || exit
         xcodebuild -version | head -1
         xcrun simctl list runtimes | grep -i '^ios'
+        ;;
+    tools)
+        # The diff tool, with the VM's Xcode (CoreGraphics, ImageIO).
+        xcrun swiftc -O -o ~/ci/snapshot_diff src/Tools/ci/snapshot_diff.swift
         ;;
     proof)
         # Not a git checkout: the version is the run's business, not the tag's.
         rm -rf ~/ci/out && cd src && PROOF_DIR="$HOME/ci/out" Tools/proof.sh ci
         ls ~/ci/out/review-ios/*.png
         ;;
+    compare)
+        # Each screen against its picture kept at the base: a line of its
+        # name and changed pixels, and its diff where any changed.
+        rm -rf ~/ci/diffs && mkdir -p ~/ci/diffs && : > ~/ci/compared.tsv || exit
+        for picture in ~/ci/out/review-ios/*.png; do
+            [ -e "$picture" ] || continue
+            name="$(basename "$picture" .png)"
+            pixels="$(~/ci/snapshot_diff "base/Tests/Proof/$name.png" "$picture" "diffs/$name.png")" || exit
+            printf '%s\t%s\n' "$name" "$pixels" >> compared.tsv
+        done
+        ;;
 esac
 EOF
 run "$OSS" machine upload "$lease" --identity="$work/key" "$work/vm" ci
 run vm bash ci/in_vm.sh unpack
+# The diff tool before the apps: a broken one fails before they're built.
+run vm bash ci/in_vm.sh tools
 echo "::endgroup::"
 
 echo "::group::Tools/proof.sh: the demo apps, built and pictured"
 status=0
 run vm bash ci/in_vm.sh proof || status=$?
-# scp makes the folder (one already here would get it inside).
+echo "::endgroup::"
+echo "::group::The screens against their pictures kept at the base"
+# Whatever came of the apps: a broken screen is what the proof is for.
+run vm bash ci/in_vm.sh compare || { echo "mac_vm_proof.sh: the screens were not compared" >&2; [ "$status" -ne 0 ] || status=1; }
+# scp makes each folder (one already here would get it inside).
 run "$OSS" machine download "$lease" --identity="$work/key" ci/out/review-ios "$work/recorded" || mkdir -p "$work/recorded"
+run "$OSS" machine download "$lease" --identity="$work/key" ci/diffs "$work/diffs" || mkdir -p "$work/diffs"
+run "$OSS" machine download "$lease" --identity="$work/key" ci/compared.tsv "$work/compared.tsv" || : > "$work/compared.tsv"
 echo "::endgroup::"
 release
 
-# The proof, from the pictures and the ones kept at the base.
+# The proof, from the screens and how each compared with the base.
 json() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 mkdir -p "$proof/screens" "$proof/diffs"
 screens=""
@@ -170,7 +199,14 @@ for picture in "$work/recorded"/*.png; do
     [ -e "$picture" ] || continue
     name="$(basename "$picture" .png)"
     cp "$picture" "$proof/screens/$name.png"
-    pixels="$("$work/snapshot_diff" "$work/base/Tests/Proof/$name.png" "$picture" "$proof/diffs/$name.png")"
+    [ ! -f "$work/diffs/$name.png" ] || cp "$work/diffs/$name.png" "$proof/diffs/$name.png"
+    pixels="$(awk -F'\t' -v name="$name" '$1 == name { print $2; exit }' "$work/compared.tsv")"
+    case "$pixels" in
+        '' | *[!0-9]*)
+            echo "mac_vm_proof.sh: $name was not compared" >&2
+            [ "$status" -ne 0 ] || status=1
+            continue ;;
+    esac
     changed=false
     [ "$pixels" -eq 0 ] || changed=true
     screens="$screens${screens:+,}

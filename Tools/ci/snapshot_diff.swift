@@ -1,5 +1,6 @@
 // A snapshot's pixels compared with its kept picture, for CI's proof
-// (Tools/ci/mac_vm_proof.sh builds this file with swiftc on the runner):
+// (Tools/ci/mac_vm_proof.sh builds this file with swiftc in its macOS VM,
+// and runs it there):
 //
 //   snapshot_diff <kept.png> <new.png> <diff.png>
 //
