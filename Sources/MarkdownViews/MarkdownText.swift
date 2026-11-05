@@ -16,7 +16,13 @@ public struct MarkdownText: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(MarkdownRun.runs(MarkdownCache.blocks(text)).enumerated()), id: \.offset) { _, run in
                 switch run {
-                case .prose(let blocks): prose(blocks)
+                case .prose(let blocks):
+                    // As tall as its lines, as a list item and a table's
+                    // cell are: in a list cell, offered the row's
+                    // estimate, the prose was the one part of a message
+                    // that gave way, cut to a line at "…" (and the row,
+                    // measured short, ran over the one above).
+                    prose(blocks).fixedSize(horizontal: false, vertical: true)
                 case .block(let block): blockView(block)
                 }
             }
@@ -58,6 +64,7 @@ public struct MarkdownText: View {
                 .cornerRadius(8)
         case .heading(let level, let line):
             inline(line).font(Self.headingFont(level))
+                .fixedSize(horizontal: false, vertical: true)
         case .list(let items):
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
@@ -74,6 +81,7 @@ public struct MarkdownText: View {
             }
         case .paragraph(let lines):
             inline(lines)
+                .fixedSize(horizontal: false, vertical: true)
         case .table(let header, let rows):
             MarkdownTable(header: header, rows: rows, inline: inline)
         case .quote(let quoted):
