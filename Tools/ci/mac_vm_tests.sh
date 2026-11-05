@@ -111,7 +111,10 @@ for target in $targets; do
     result=0
     run timeout 900 "$OSS" machine xctest "$slot" --tests="$bundle" $mode --junit="$out/test.xml" > "$out/test.log" 2>&1 || result=$?
     [ "$result" -ne 124 ] || echo "stopped after 15 minutes" >> "$out/test.log"
-    executed="$(grep -E 'Executed [0-9]+ tests?' "$out/test.log" | tail -1 | sed 's/^[[:space:]]*//')"
+    # A run that never started (stopped waiting for the slot's GUI session,
+    # say) has no count: grep finds nothing, and without `|| true` set -e
+    # would end the script here, before the failure and its log are shown.
+    executed="$(grep -E 'Executed [0-9]+ tests?' "$out/test.log" | tail -1 | sed 's/^[[:space:]]*//' || true)"
     if [ "$result" -eq 0 ]; then
         echo "$name${mode:+ ($mode)} PASSED in $((SECONDS - started))s: ${executed:-no count}"
     else

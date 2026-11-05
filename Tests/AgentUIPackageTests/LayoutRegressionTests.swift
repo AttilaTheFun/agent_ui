@@ -33,6 +33,30 @@ final class LayoutRegressionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(item, paragraph - 1, "the item takes them all, offered one line")
     }
 
+    /// A paragraph longer than its line wraps onto every line it needs,
+    /// offered less height (a list cell's estimate), as a list item does.
+    func testAParagraphWraps() {
+        let words = "I've written the fork handoff to the downloads folder: what was found, where the evidence is, and what is still refused."
+        let oneLine = size(of: MarkdownText("short"), width: 300).height
+        let paragraph = size(of: Text(words), width: 300).height
+        XCTAssertGreaterThan(paragraph, oneLine * 2.5, "the words need several lines")
+        let offered = size(of: MarkdownText(words), width: 300, height: oneLine).height
+        XCTAssertGreaterThanOrEqual(offered, paragraph - 1, "the paragraph takes them all, offered one line")
+    }
+
+    /// A message's paragraphs around a table keep their lines too: the
+    /// table's cells hold their height, so offered less, the paragraphs
+    /// were what gave way, each cut to one line at "…".
+    func testParagraphsAroundATableKeepTheirLines() {
+        let words = "Each item says what was found and where the evidence is, so the fork can be checked against it later."
+        let table = "| Area | Exact | Rejected |\n|---|---|---|\n| Asset catalogs | App icons, image sets, colour and data sets | Some edge features |"
+        let message = words + "\n\n" + table + "\n\n" + words
+        let whole = size(of: MarkdownText(message), width: 300).height
+        let oneLine = size(of: MarkdownText("short"), width: 300).height
+        let offered = size(of: MarkdownText(message), width: 300, height: oneLine * 4).height
+        XCTAssertGreaterThanOrEqual(offered, whole - 1, "offered less, the message keeps every line")
+    }
+
     /// A code block's line longer than the width wraps within it (a
     /// connection code is one long word), rather than running off the side
     /// to be scrolled to.
