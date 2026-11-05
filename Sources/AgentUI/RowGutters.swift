@@ -14,7 +14,8 @@ import SwiftUI
 final class RowGutters {
     var trailing: CGFloat = 0
 
-    /// A row's whole width and the composer bar's.
+    /// A row's whole width (whichever row last changed size: a list lays
+    /// out only the rows on screen) and the composer bar's.
     @ObservationIgnored var row: CGFloat = 0 {
         didSet { if row != oldValue { measure() } }
     }
