@@ -92,10 +92,10 @@ to one focused change, and say in it how the change was verified.
 CI makes it, only when asked for by hand (since 2026-11-01, for CI's time):
 an agent runs CI's `workflow_dispatch` on main to propose a release (pull
 requests and main's commits run their tests alone). The `proof` job runs `Tools/ci/mac_vm_proof.sh` on
-the repository's own runner (`agent_ui-ci`). The script leases a macOS VM from OS Server (`xcode_27_2`), copies
+one of OS Server's single-use runners (`agent_ui-jit`). The script leases a macOS VM from OS Server (`xcode_27_2`), copies
 the committed tree in, and runs `Tools/proof.sh` there, which builds the four
 example apps for the iPhone simulator and pictures each one's first screen.
-It compares each picture with the one kept for it in `Tests/Proof` at the
+There too it compares each picture with the one kept for it in `Tests/Proof` at the
 previous release (the newest `v*` tag before the commit, else the commit
 before), so it shows every change since, and uploads the `proof` artifact:
 `screens/`, `diffs/` (only what changed) and `proof.json`. Reviews reads it
