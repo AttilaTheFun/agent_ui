@@ -351,32 +351,39 @@ public struct TranscriptView: View {
                 // In the column, at the rows' left edge, as they will be.
                 if shown.isEmpty { emptyState.transcriptCell() }
                 ForEach(TranscriptBlock.blocks(shown)) { block in
-                    Group {
+                    measured(Group {
                         switch block {
                         case .message(let message): TranscriptRow(message: message).transcriptCell()
                         case .calls(let run): ToolCallsRow(run: run).transcriptCell()
                         }
-                    }
+                    })
                     // Where the reader is (the viewport, and the row kept in
                     // place when rows above it go).
                     .onAppear { onScreen(block.id, true) }
                     .onDisappear { onScreen(block.id, false) }
                 }
-                StatusRow(busy: busy, status: status, activity: activity, error: error)
-                    .transcriptCell()
+                measured(StatusRow(busy: busy, status: status, activity: activity, error: error)
+                    .transcriptCell())
                     .id(Self.bottom)
             }
-            // Every row's whole width (they are all as wide), against the
-            // composer's bar: the composer lines up with the rows
-            // (RowGutters). Any row on screen keeps it current. The bottom
-            // row alone, scrolled out of view, kept the width it had before
-            // the sidebar was collapsed, and the composer sat half the
-            // sidebar's width to the left of the transcript.
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gutters?.row = $0 }
             .listRowSeparator(.hidden)
             .plainListRow()
         }
         .listStyle(.plain)
+    }
+
+    /// A row's whole width (they are all as wide), against the composer's
+    /// bar: the composer lines up with the rows (RowGutters). Every row
+    /// reports, so any row on screen keeps it current: the bottom row
+    /// alone, scrolled out of view, kept the width it had before the
+    /// sidebar was collapsed, and the composer sat half the sidebar's width
+    /// to the left of the transcript. Inside each row, under the status
+    /// row's id: put on the list's group, it wrapped that id, and every
+    /// scroll to the end (`proxy.scrollTo(Self.bottom)`) went nowhere, the
+    /// thread opening at its top and new rows left below (AgentUI 0.45.0,
+    /// agent_ui#76).
+    private func measured(_ row: some View) -> some View {
+        row.onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gutters?.row = $0 }
     }
 
     /// Drawn once its first rows have landed, over the held empty state.
