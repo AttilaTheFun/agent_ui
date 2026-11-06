@@ -58,7 +58,9 @@ for zip in "$bundles"/*.zip; do
     # A run that never started has no count: grep finds nothing, and without
     # `|| true` set -e would end the script here, before its log is shown.
     executed="$(grep -E 'Executed [0-9]+ tests?' "$work/logs/$name/test.log" | tail -1 | sed 's/^[[:space:]]*//' || true)"
-    grep -E "error:|failed \(" "$work/logs/$name/test.log" | head -40 || true
+    # Its failures alone (XCTest's `error: -[Class test]` lines): the system
+    # logs its own errors there too (Contacts' store, in a runner's session).
+    grep -E 'error: -\[|failed \(' "$work/logs/$name/test.log" | head -40 || true
     echo "::endgroup::"
     if [ "$result" -eq 0 ]; then
         echo "$name PASSED in $((SECONDS - started))s: ${executed:-no count}"
