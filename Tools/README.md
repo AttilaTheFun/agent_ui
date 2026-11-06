@@ -6,3 +6,6 @@
 `Tools/released_pins.sh` fails while a dependency is pinned to a revision or
 a branch rather than a released version: CI runs it on main's commits, and a
 release waits for it.
+
+`Tools/check_rules.py` checks the rules of AGENTS.md that must hold (CI's
+`rules` job, on every pull request): run it before pushing.

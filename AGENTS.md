@@ -33,6 +33,12 @@ to one focused change, and say in it how the change was verified.
 
 ## Rules
 
+CI's `rules` job (Tools/check_rules.py) checks the ones that must hold:
+`@unchecked Sendable` and `nonisolated(unsafe)`, dependencies, and in
+Sources/ Combine and CoreGraphics, the Foundation below outside an Apple
+platform's `#if`, and one type per file. A rule that matters and can be
+checked goes there too.
+
 - Every target imports SwiftUI and nothing else. No app code, no
   third-party dependencies, and no Bazel in what consumers build: other
   repositories take the package through SwiftPM or
