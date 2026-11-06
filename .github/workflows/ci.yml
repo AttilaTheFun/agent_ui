@@ -44,6 +44,20 @@ jobs:
           if printf '%s\n' "$files" | awk '!/^([Dd]ocs\/|\.notes\/)|\.md$/ { code = 1 } END { exit !code }'; then code=true; else code=false; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
+  # The rules of AGENTS.md that must hold, checked (Tools/check_rules.py):
+  # no unchecked concurrency, no dependencies, and in Sources/ no Combine or
+  # CoreGraphics, the Foundation other SwiftUIs' hosts lack only behind an
+  # Apple platform's #if, one type per file. Only Python and git: on
+  # GitHub's own runners, which a public repository has for free.
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: python3 Tools/check_rules.py
+
   # The tests, built on Linux as macOS bundles (Tools/ci/build_tests.sh:
   # Xcode 27.2's SDK, the code held to the Swift 6 mode with warnings as
   # errors), then run on one of GitHub's Macs (test).
