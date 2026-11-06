@@ -58,9 +58,9 @@ to one focused change, and say in it how the change was verified.
   code to the Swift 6 mode with warnings as errors (`swift test -Xswiftc
   -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors`), so run that
   before pushing. CI builds the tests so with Bazel on Linux
-  (BUILD.bazel's copts) and runs them on a slot of OS Server's primary Mac
-  (Tools/ci/mac_vm_tests.sh; AgentUIPackageTests, which draws windows, in
-  its GUI session). No `@unchecked Sendable`, and no shared singletons for
+  (BUILD.bazel's copts, Tools/ci/build_tests.sh) and runs them on one of
+  GitHub's own Macs (Tools/ci/hosted_tests.sh, `xcode-27`;
+  AgentUIPackageTests, which draws windows, in its desktop session). No `@unchecked Sendable`, and no shared singletons for
   view state: state a row needs from its thread goes through the
   environment (`openedTranscriptImage`).
 - Views are main-actor isolated by their conformance to `View`, on Apple's
@@ -91,14 +91,15 @@ to one focused change, and say in it how the change was verified.
 
 CI makes it, only when asked for by hand (since 2026-11-01, for CI's time):
 an agent runs CI's `workflow_dispatch` on main to propose a release (pull
-requests and main's commits run their tests alone). The `proof` job runs `Tools/ci/mac_vm_proof.sh` on
-one of OS Server's single-use runners (`agent_ui-jit`). The script leases a macOS VM from OS Server (`xcode_27_2`), copies
-the committed tree in, and runs `Tools/proof.sh` there, which builds the four
-example apps for the iPhone simulator and pictures each one's first screen.
-There too it compares each picture with the one kept for it in `Tests/Proof` at the
+requests and main's commits run their tests alone). The `proof` job runs
+`Tools/ci/hosted_proof.sh` on one of GitHub's own Macs (`xcode-27`, free
+for a public repository, leaving OS Server's macOS VMs to the agents:
+Logan, 5 Nov 2026). It runs `Tools/proof.sh` there, which builds the four
+example apps for the iPhone simulator and pictures each one's first screen,
+and compares each picture with the one kept for it in `Tests/Proof` at the
 previous release (the newest `v*` tag before the commit, else the commit
 before), so it shows every change since, and uploads the `proof` artifact:
-`screens/`, `diffs/` (only what changed) and `proof.json`. Reviews reads it
+`screens/`, `before/` and `diffs/` (only what changed) and `proof.json`. Reviews reads it
 straight from GitHub by commit: no release is made without a proof of its
 commit, and that proof is the one reviewed. To bisect a regression, prove
 an earlier commit after the fact: push a branch at it and run the workflow
