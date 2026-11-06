@@ -1,7 +1,7 @@
 #!/bin/bash
 # The demo apps' first screens (Examples/: AgentExample, SplitExample,
 # StackExample, TabbedExample), each built for the simulator, launched and
-# pictured. CI runs it in a leased macOS VM (Tools/ci/mac_vm_proof.sh) and
+# pictured. CI runs it on one of GitHub's Macs (Tools/ci/hosted_proof.sh) and
 # compares the pictures with Tests/Proof; run here, it is a look before
 # pushing.
 #
@@ -24,9 +24,17 @@ for app in "${APPS[@]}"; do
     -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData/proof CODE_SIGNING_ALLOWED=NO \
     > "$OUT/build-$app.log" 2>&1 || { echo "$app: build failed (see $OUT/build-$app.log)"; status=1; }
 done
-# The newest iOS runtime, major and minor only: a device's own runtime
-# (iOS-27-2-iPhone19-4) would otherwise end the match at a dash.
-runtime="$(xcrun simctl list runtimes | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9]+-[0-9]+' | tail -1)"
+# The newest iOS runtime that runs the device: a runtime that came with a
+# new phone runs that phone alone (GitHub's xcode-27 image: iOS 27.1, the
+# iPhone Duo's).
+runtime_for() {
+  xcrun simctl list runtimes --json | python3 -I -c '
+import json, sys
+runtimes = [r for r in json.load(sys.stdin)["runtimes"] if r.get("platform") == "iOS" and r.get("isAvailable")
+            and any(t.get("name") == sys.argv[1] for t in r.get("supportedDeviceTypes", []))]
+runtimes.sort(key=lambda r: [int(part) for part in r["version"].split(".")])
+print(runtimes[-1]["identifier"] if runtimes else "")' "$1"
+}
 # Each example on the device it is about: an iPad for the two that differ
 # only where there is room for a sidebar beside the content (on an iPhone
 # both are a list alone, and look the same), an iPhone for the rest.
@@ -41,7 +49,7 @@ for device in "iPhone 17" "iPad Pro 13-inch (M5)"; do
   name="AgentUI proof"
   [ "$device" = "iPhone 17" ] || name="AgentUI proof iPad"
   sim="$(xcrun simctl list devices | grep -F "$name (" | grep -o '[0-9A-F-]\{36\}' | head -1)"
-  [ -n "$sim" ] || sim="$(xcrun simctl create "$name" "$device" "$runtime")"
+  [ -n "$sim" ] || sim="$(xcrun simctl create "$name" "$device" "$(runtime_for "$device")")"
   xcrun simctl shutdown "$sim" 2>/dev/null || true
   xcrun simctl erase "$sim"
   xcrun simctl boot "$sim"

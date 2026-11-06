@@ -1,6 +1,6 @@
 """AgentUI's tests on a Mac, built anywhere: Bazel builds them as
-macos_unit_test bundles on Linux too (rules_applecross), which CI runs on a
-slot of OS Server's primary Mac (Tools/ci/mac_vm_tests.sh). SwiftPM's
+macos_unit_test bundles on Linux too (rules_applecross), which CI runs on
+one of GitHub's Macs (Tools/ci/build_tests.sh, hosted_tests.sh). SwiftPM's
 Package.swift stays what the package is built and used by; this module is
 for CI."""
 

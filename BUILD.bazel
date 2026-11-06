@@ -1,7 +1,7 @@
 # AgentUI for Bazel: the same targets as Package.swift, and its two test
 # targets as macos_unit_test bundles, which CI builds on Linux
-# (rules_applecross) and runs on a slot of OS Server's primary Mac
-# (Tools/ci/mac_vm_tests.sh). Swift 6 mode with warnings as errors, as CI's
+# (rules_applecross, Tools/ci/build_tests.sh) and runs on one of GitHub's
+# Macs (Tools/ci/hosted_tests.sh). Swift 6 mode with warnings as errors, as CI's
 # `swift test` had it. Consumers take the package through SwiftPM or
 # rules_swift_package_manager, which drops these files.
 

@@ -15,11 +15,11 @@ concurrency:
 # Read only: no job here publishes or writes to the repository.
 permissions:
   contents: read
-# Every job only leases what it runs in, and runs on OS Server's single-use
-# runners (self-hosted, agent_ui-jit): each a fresh Linux container with
-# `oss` on its PATH. The proof's diff tool is built and run in the macOS VM
-# it leases (Tools/ci/mac_vm_proof.sh). No self-hosted runner ever runs a
-# fork's pull request.
+# What builds on Linux builds on OS Server's single-use runners
+# (self-hosted, agent_ui-jit: each a fresh Linux container); what needs a
+# Mac runs on GitHub's own (`xcode-27`), which a public repository has for
+# free, leaving OS Server's machines to the agents (Logan, 5 Nov 2026). No
+# self-hosted runner ever runs a fork's pull request.
 jobs:
   # Whether the pull request changes anything but documentation (Markdown,
   # docs/, .notes/); a push to main always does. A job it skips passes.
@@ -44,25 +44,54 @@ jobs:
           if printf '%s\n' "$files" | awk '!/^([Dd]ocs\/|\.notes\/)|\.md$/ { code = 1 } END { exit !code }'; then code=true; else code=false; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
-  # The tests, in a macOS VM leased from OS Server (Tools/ci/mac_vm_tests.sh):
-  # Xcode 27, the toolchain the code is written against, and the code held
-  # to the Swift 6 mode with warnings as errors.
-  test:
+  # The tests, built on Linux as macOS bundles (Tools/ci/build_tests.sh:
+  # Xcode 27.2's SDK, the code held to the Swift 6 mode with warnings as
+  # errors), then run on one of GitHub's Macs (test).
+  build-tests:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: [self-hosted, agent_ui-jit]
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      # exec: the runner's cancel reaches the script's trap, which releases the VM.
-      - run: exec Tools/ci/mac_vm_tests.sh
+      - run: Tools/ci/build_tests.sh "$RUNNER_TEMP/bundles"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-bundles
+          path: ${{ runner.temp }}/bundles
+          if-no-files-found: error
+          retention-days: 1
+
+  # The bundles run in an xcode-27 runner's desktop session, where
+  # AgentUIPackageTests' windows draw (Tools/ci/hosted_tests.sh). Named
+  # `test` still: main's branch protection requires a check of that name,
+  # which a pull request of documentation alone reports as skipped.
+  test:
+    needs: build-tests
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-bundles
+          path: ${{ runner.temp }}/bundles
+      - run: Tools/ci/hosted_tests.sh "$RUNNER_TEMP/bundles" --logs "$RUNNER_TEMP/test-logs"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: test-logs
+          path: ${{ runner.temp }}/test-logs
+          retention-days: 7
 
   # The proof, only when asked for by hand (workflow_dispatch), which is how
   # an agent proposes a release; pull requests and main's commits run their
-  # tests alone. The demo apps' first screens, made in a macOS VM leased from
-  # OS Server (Tools/ci/mac_vm_proof.sh), and how each differs from its
+  # tests alone. The demo apps' first screens, made on one of GitHub's Macs
+  # (Tools/ci/hosted_proof.sh), and how each differs from its
   # picture kept at the previous release (Tests/Proof at the newest v* tag
   # before the commit, else the commit before). Reviews reads the `proof`
   # artifact from GitHub by commit: no release without a proof of its
@@ -70,7 +99,7 @@ jobs:
   # workflow on it.
   proof:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, agent_ui-jit]
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -79,12 +108,11 @@ jobs:
           # are what the screens are compared with.
           fetch-depth: 0
           fetch-tags: true
-      - name: The demo apps in a macOS VM, and the proof
-        # exec: the runner's cancel reaches the script's trap, which releases the VM.
+      - name: The demo apps, built and pictured, and the proof
         run: |
           base="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^ 2> /dev/null || git rev-parse HEAD^)"
           echo "Compared with $base"
-          exec Tools/ci/mac_vm_proof.sh --kind full --base "$base" --proof "$RUNNER_TEMP/proof"
+          Tools/ci/hosted_proof.sh --kind full --base "$base" --proof "$RUNNER_TEMP/proof"
       # The proof whether the apps came up or not: a broken screen is what it's for.
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
