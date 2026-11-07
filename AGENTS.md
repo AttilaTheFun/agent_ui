@@ -7,8 +7,11 @@ what the pieces are.
 ## Changes
 
 This repo is public. Every change to `main` goes through a pull request:
-`main` is protected, direct pushes are rejected, and the CI check (the
-tests) must pass before a pull request can merge. Keep each pull request
+`main` is protected, direct pushes are rejected, and CI's one check,
+`container` (the rules, then the package and its tests built on Linux),
+must pass on main's head before a pull request can merge. The tests run
+on a Mac by hand (`run: verify`), and every release proposal runs them
+(Reviews' docs/CI_POLICY.md). Keep each pull request
 to one focused change, and say in it how the change was verified.
 
 ## Layout
@@ -33,7 +36,7 @@ to one focused change, and say in it how the change was verified.
 
 ## Rules
 
-CI's `rules` job (Tools/check_rules.py) checks the ones that must hold:
+CI's rules step (Tools/check_rules.py, in the `container` job) checks the ones that must hold:
 `@unchecked Sendable` and `nonisolated(unsafe)`, dependencies, and in
 Sources/ Combine and CoreGraphics, the Foundation below outside an Apple
 platform's `#if`, and one type per file. A rule that matters and can be
@@ -64,8 +67,8 @@ checked goes there too.
   code to the Swift 6 mode with warnings as errors (`swift test -Xswiftc
   -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors`), so run that
   before pushing. CI builds the tests so with Bazel on Linux
-  (BUILD.bazel's copts, Tools/ci/build_tests.sh) and runs them on one of
-  GitHub's own Macs (Tools/ci/hosted_tests.sh, `xcode-27`;
+  (BUILD.bazel's copts, Tools/ci/build_tests.sh) on every pull request, and
+  its `verify` runs them on one of GitHub's own Macs (Tools/ci/hosted_tests.sh, `xcode-27`;
   AgentUIPackageTests, which draws windows, in its desktop session). No `@unchecked Sendable`, and no shared singletons for
   view state: state a row needs from its thread goes through the
   environment (`openedTranscriptImage`).
@@ -95,9 +98,10 @@ checked goes there too.
 
 ## A release's proof
 
-CI makes it, only when asked for by hand (since 2026-11-01, for CI's time):
-an agent runs CI's `workflow_dispatch` on main to propose a release (pull
-requests and main's commits run their tests alone). The `proof` job runs
+CI makes it, only when asked for by hand: CI's `workflow_dispatch` on main,
+`run: verify` for a look, or `run: release` with a `version`, which proposes
+the release as a draft once verify and the pins pass (pull requests and
+main's commits only build). The `verify` job runs
 `Tools/ci/hosted_proof.sh` on one of GitHub's own Macs (`xcode-27`, free
 for a public repository, leaving OS Server's macOS VMs to the agents:
 Logan, 5 Nov 2026). It runs `Tools/proof.sh` there, which builds the four
@@ -124,8 +128,8 @@ an app bundle built against the current SDK). Releases are tagged
 `vMAJOR.MINOR.PATCH` (v0.36.1). Consumers pin this repo by version in their
 `Package.swift` and `Package.resolved` (rules_swift_package_manager); a
 branch in development may pin a revision, a release may not — nor may this
-repo's own release pin anything but released versions (CI's `pins` job on
-main, `Tools/released_pins.sh`). SwiftPM will not resolve a package pinned
+repo's own release pin anything but released versions (CI's `pins` job
+in a release's run, `Tools/released_pins.sh`). SwiftPM will not resolve a package pinned
 by version whose own dependencies are pinned by revision.
 
 ## The repository's icon
