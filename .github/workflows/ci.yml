@@ -1,75 +1,124 @@
 name: CI
+# AgentUI's CI, as Reviews' policy for Logan's protected repositories has it
+# (AttilaTheFun/reviews, docs/CI_POLICY.md; Logan, 7 Nov 2026):
+#
+# - A pull request runs one job, `container`, the required check: in one of
+#   OS Server's single-use Linux containers (agent_ui-jit), leasing nothing,
+#   it checks the rules and builds the package and its tests on Linux as
+#   macOS bundles (Xcode 27.2's SDK, the Swift 6 mode with warnings as
+#   errors). Its Bazel reads OS Server's cache and never writes it. A pull
+#   request of documentation alone checks the rules and stops there. A
+#   newer push cancels its run. A fork's pull request runs nothing here: no
+#   self-hosted runner ever runs a fork's code.
+# - Each commit on main runs `populate`: the same build of the merged tree,
+#   cache-only, the one job that writes the cache.
+# - What needs a Mac runs only by hand (workflow_dispatch on main, `run`):
+#   - `verify`: the tests on one of GitHub's own Macs, then the proof (the
+#     demo apps' first screens, compared with the pictures kept at the
+#     previous release). Its last job, `verify`, keeps the `proof` artifact,
+#     and its success is the commit's tests passing. Run on a branch pushed
+#     at an earlier commit, it bisects a regression;
+#   - `release`, with `version`: verify first, and the pins; only once they
+#     pass, a draft release v<version> on the commit, naming the run
+#     (propose). A library has no Alphas and no pre-releases.
+# - Logan's Release in Reviews publishes the draft, which makes its tag:
+#   `release` checks the commit is on main and was verified. Consumers pin
+#   the tag's version.
+#
+# The policy's verify leases a Mac; AgentUI's runs on GitHub's own
+# (`xcode-27`), free for a public repository, leaving OS Server's Macs to
+# the agents (Logan, 5 Nov 2026).
 on:
   pull_request:
   push:
     branches: [main]
-  # The proof, by hand: to propose a release, or to bisect.
   workflow_dispatch:
-# A newer push to a pull request cancels its run before, if unfinished.
-# Every other run (a commit on main, a proof by hand) is a group of its own:
-# GitHub keeps one pending run per group and cancels the rest, so main's
-# runs sharing one left a commit queued between two others unchecked.
+    inputs:
+      run:
+        description: "verify: the tests and the proof. release: verify, then a draft release of version."
+        type: choice
+        options: [verify, release]
+        default: verify
+      version:
+        description: "release: the version proposed, MAJOR.MINOR.PATCH"
+        type: string
+        required: false
+  # Logan's Release in Reviews publishes the draft, which makes its v* tag.
+  release:
+    types: [published]
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-{0}', github.run_id) }}
+  # A pull request's newer push cancels its older run. Every other run is a
+  # group of its own and never cancelled.
+  group: >-
+    ${{ github.event_name == 'pull_request'
+        && format('ci-pr-{0}', github.head_ref)
+        || format('ci-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-# Read only: no job here publishes or writes to the repository.
 permissions:
   contents: read
-# What builds on Linux builds on OS Server's single-use runners
-# (self-hosted, agent_ui-jit: each a fresh Linux container); what needs a
-# Mac runs on GitHub's own (`xcode-27`), which a public repository has for
-# free, leaving OS Server's machines to the agents (Logan, 5 Nov 2026). No
-# self-hosted runner ever runs a fork's pull request.
+  actions: read
 jobs:
-  # Whether the pull request changes anything but documentation (Markdown,
-  # docs/, .notes/); a push to main always does. A job it skips passes.
-  changes:
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, agent_ui-jit]
-    timeout-minutes: 5
-    outputs:
-      code: ${{ steps.diff.outputs.code }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-      - id: diff
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ -z "$BASE" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          files="$(git diff --name-only "$BASE" HEAD)"
-          echo "$files"
-          if printf '%s\n' "$files" | awk '!/^([Dd]ocs\/|\.notes\/)|\.md$/ { code = 1 } END { exit !code }'; then code=true; else code=false; fi
-          echo "code=$code" >> "$GITHUB_OUTPUT"
+  # ---- Pull requests -------------------------------------------------------
 
-  # The rules of AGENTS.md that must hold, checked (Tools/check_rules.py):
-  # no unchecked concurrency, no dependencies, and in Sources/ no Combine or
-  # CoreGraphics, the Foundation other SwiftUIs' hosts lack only behind an
-  # Apple platform's #if, one type per file. Only Python and git: on
-  # GitHub's own runners, which a public repository has for free.
-  rules:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - run: python3 Tools/check_rules.py
-
-  # The tests, built on Linux as macOS bundles (Tools/ci/build_tests.sh:
-  # Xcode 27.2's SDK, the code held to the Swift 6 mode with warnings as
-  # errors), then run on one of GitHub's Macs (test).
-  build-tests:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
+  container:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, agent_ui-jit]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      # Whether it changes anything but documentation (docs/, .notes/,
+      # Markdown).
+      - id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          files="$(git diff --name-only "$BASE" HEAD)"
+          echo "$files"
+          if printf '%s\n' "$files" | awk '!/^([Dd]ocs\/|\.notes\/)|\.md$/ { code = 1 } END { exit !code }'; then code=true; else code=false; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      # The rules of AGENTS.md that must hold (Tools/check_rules.py): no
+      # unchecked concurrency, no dependencies, and in Sources/ no Combine
+      # or CoreGraphics, the Foundation other SwiftUIs' hosts lack only
+      # behind an Apple platform's #if, one type per file.
+      - name: Rules
+        run: python3 Tools/check_rules.py
+      # The cache is read here, never written: populate alone writes it.
+      - name: The cache, read only
+        if: steps.changes.outputs.code == 'true'
+        run: echo 'build --noremote_upload_local_results' >> ~/.bazelrc
+      # The package and its tests built as macOS bundles
+      # (Tools/ci/build_tests.sh), which only verify runs.
+      - name: Built
+        if: steps.changes.outputs.code == 'true'
+        run: Tools/ci/build_tests.sh "$RUNNER_TEMP/bundles"
+
+  # ---- main ----------------------------------------------------------------
+
+  # The cache's one writer (OS Server's `ci.populate` grants this job the
+  # write): the merged tree built as a pull request's container job builds
+  # it. No tests, nothing published.
+  populate:
+    if: github.event_name == 'push'
+    runs-on: [self-hosted, agent_ui-jit]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: Tools/ci/build_tests.sh "$RUNNER_TEMP/bundles"
+
+  # ---- By hand: verify -----------------------------------------------------
+
+  # The tests, built on Linux as macOS bundles (Tools/ci/build_tests.sh),
+  # then run on one of GitHub's Macs (test).
+  build-tests:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, agent_ui-jit]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo 'build --noremote_upload_local_results' >> ~/.bazelrc
       - run: Tools/ci/build_tests.sh "$RUNNER_TEMP/bundles"
       - uses: actions/upload-artifact@v4
         with:
@@ -78,18 +127,14 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The bundles run in an xcode-27 runner's desktop session, where
-  # AgentUIPackageTests' windows draw (Tools/ci/hosted_tests.sh). Named
-  # `test` still: main's branch protection requires a check of that name,
-  # which a pull request of documentation alone reports as skipped.
+  # The bundles in an xcode-27 runner's desktop session, where
+  # AgentUIPackageTests' windows draw (Tools/ci/hosted_tests.sh).
   test:
     needs: build-tests
     runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/download-artifact@v4
         with:
           name: test-bundles
@@ -102,17 +147,15 @@ jobs:
           path: ${{ runner.temp }}/test-logs
           retention-days: 7
 
-  # The proof, only when asked for by hand (workflow_dispatch), which is how
-  # an agent proposes a release; pull requests and main's commits run their
-  # tests alone. The demo apps' first screens, made on one of GitHub's Macs
-  # (Tools/ci/hosted_proof.sh), and how each differs from its
-  # picture kept at the previous release (Tests/Proof at the newest v* tag
-  # before the commit, else the commit before). Reviews reads the `proof`
-  # artifact from GitHub by commit: no release without a proof of its
-  # commit. To bisect, push a branch at an earlier commit and run the
-  # workflow on it.
-  proof:
-    if: github.event_name == 'workflow_dispatch'
+  # The proof: the demo apps' first screens, made on one of GitHub's Macs
+  # (Tools/ci/hosted_proof.sh), and how each differs from its picture kept
+  # at the previous release (Tests/Proof at the newest v* tag before the
+  # commit, else the commit before), kept as the `proof` artifact Reviews
+  # reads. It passes only when the tests did too: its success is the commit
+  # verified, which propose and the release job ask for.
+  verify:
+    needs: test
+    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
     runs-on: xcode-27
     timeout-minutes: 60
     steps:
@@ -134,13 +177,63 @@ jobs:
           name: proof
           path: ${{ runner.temp }}/proof
           retention-days: 90
+      - if: needs.test.result != 'success'
+        run: |
+          echo "::error::Not verified: the tests $TESTS"
+          exit 1
+        env:
+          TESTS: ${{ needs.test.result }}
 
-  # Ready to release: every dependency pinned to a released version. Run on
-  # main's commits, which releases are of (a pull request may still pin a
-  # revision); Reviews holds a release until it passes.
+  # ---- By hand: a release proposed -----------------------------------------
+
+  # Ready to release: every dependency pinned to a released version
+  # (Tools/released_pins.sh).
   pins:
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && inputs.run == 'release'
     runs-on: [self-hosted, agent_ui-jit]
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - run: Tools/released_pins.sh
+
+  # The draft release, once verify and pins passed (Tools/ci/propose_release.sh).
+  propose:
+    needs: [verify, pins]
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      inputs.run == 'release' && needs.verify.result == 'success' && needs.pins.result == 'success'
+    runs-on: [self-hosted, agent_ui-jit]
+    timeout-minutes: 5
+    permissions:
+      # The draft release.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      # Untrusted text reaches the shell through env, never ${{ }} in run.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: Tools/ci/propose_release.sh "$VERSION"
+
+  # ---- Released ------------------------------------------------------------
+
+  # Logan's Release in Reviews: the tag's commit must be on main and
+  # verified (Tools/ci/verified_run.sh: a run by hand whose verify passed
+  # and kept its proof). Nothing is built or published.
+  release:
+    if: github.event_name == 'release' && !github.event.release.prerelease && startsWith(github.ref, 'refs/tags/v')
+    runs-on: [self-hosted, agent_ui-jit]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: The release is a main commit
+        run: git merge-base --is-ancestor HEAD origin/main || { echo "::error::$GITHUB_REF_NAME's commit is not on main"; exit 1; }
+      - name: The release was verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "Verified by run $(Tools/ci/verified_run.sh "$(git rev-parse HEAD)")"
