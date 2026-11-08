@@ -196,7 +196,7 @@ jobs:
   # (Tools/released_pins.sh).
   pins:
     if: github.event_name == 'workflow_dispatch' && inputs.run == 'release'
-    runs-on: [self-hosted, agent_ui-jit]
+    runs-on: [self-hosted, agent_ui-jit-small]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -208,7 +208,7 @@ jobs:
     if: >-
       always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
       inputs.run == 'release' && needs.verify.result == 'success' && needs.pins.result == 'success'
-    runs-on: [self-hosted, agent_ui-jit]
+    runs-on: [self-hosted, agent_ui-jit-small]
     timeout-minutes: 5
     permissions:
       # The draft release.
@@ -231,7 +231,7 @@ jobs:
   # and kept its proof). Nothing is built or published.
   release:
     if: github.event_name == 'release' && !github.event.release.prerelease && startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, agent_ui-jit]
+    runs-on: [self-hosted, agent_ui-jit-small]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
