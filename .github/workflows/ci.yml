@@ -57,6 +57,12 @@ concurrency:
 permissions:
   contents: read
   actions: read
+# Every step in bash with pipefail (GitHub's `bash --noprofile --norc -eo
+# pipefail {0}`): its default, `bash -e {0}`, takes a pipe's last status, so
+# a failing command piped into tee or grep would pass.
+defaults:
+  run:
+    shell: bash
 jobs:
   # ---- Pull requests -------------------------------------------------------
 
@@ -236,4 +242,9 @@ jobs:
       - name: The release was verified
         env:
           GH_TOKEN: ${{ github.token }}
-        run: echo "Verified by run $(Tools/ci/verified_run.sh "$(git rev-parse HEAD)")"
+        # An assignment, so that the script's failure fails the step (an
+        # echo of its output would pass whatever it said).
+        run: |
+          run="$(Tools/ci/verified_run.sh "$(git rev-parse HEAD)")" \
+            || { echo "::error::$GITHUB_REF_NAME's commit was not verified: no release"; exit 1; }
+          echo "Verified by run $run"
