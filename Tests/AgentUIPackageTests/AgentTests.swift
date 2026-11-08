@@ -13,6 +13,15 @@ final class AgentTests: XCTestCase {
         XCTAssertEqual(blocks.map(\.id), ["calls-c", "g", "calls-r"])
     }
 
+    func testMailIsItsOwnRowAmongCalls() {
+        let call = TranscriptMessage(id: "c", role: .assistant, text: "", activities: ["Bash: ls"])
+        let mail = TranscriptMessage(id: "m", role: .tool, text: "From Isomer: the build is green", toolName: "mail")
+        let result = TranscriptMessage(id: "r", role: .tool, text: "done", toolName: "tool_result")
+        XCTAssertEqual(TranscriptBlock.blocks([call, mail, result]).map(\.id), ["calls-c", "m", "calls-r"])
+        XCTAssertTrue(MailRow.shows(mail))
+        XCTAssertFalse(MailRow.shows(result))
+    }
+
     func testBlankAndTrim() {
         XCTAssertTrue(AgentText.isBlank("  \n\t"))
         XCTAssertFalse(AgentText.isBlank(" a "))

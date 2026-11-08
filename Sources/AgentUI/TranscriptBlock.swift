@@ -18,7 +18,7 @@ public enum TranscriptBlock: Identifiable {
     static func isCall(_ message: TranscriptMessage) -> Bool {
         switch message.role {
         case .assistant: message.text.isEmpty && !message.activities.isEmpty
-        case .tool: message.imageURLs.isEmpty && !GoalRow.shows(message)
+        case .tool: message.imageURLs.isEmpty && !GoalRow.shows(message) && !MailRow.shows(message)
         case .user: false
         }
     }

@@ -53,6 +53,8 @@ public struct TranscriptRow: View {
         switch message.toolName {
         case "goal", "goal-met":
             GoalRow(text: message.text, met: message.toolName == "goal-met")
+        case "mail":
+            MailRow(text: message.text)
         case "screenshot":
             EmptyView()
         case "import":
