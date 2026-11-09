@@ -35,14 +35,15 @@ reimplementation of the same API, so one source builds everywhere.
   `adaptiveInspector(isPresented:compact:)` (an inspector, or a sheet on a
   phone), `EmptyDetail`, and the app's Settings: `SettingsInspectorButton`
   (a navigation-bar "Settings" with a gear, toggling `isPresented`) and
-  `settingsInspector(isPresented:attachedTo:settings:)` (the trailing
-  inspector in two columns, a sheet with Done in one; attached both on the
-  detail column and on the whole split view, it takes effect at the
-  platform's own place: the detail column on a Mac, the split view
-  elsewhere, as Issues found on a Mac and an iPad). The detail column sets
-  its own minimum width and a Mac window's minimum fits the sidebar, the
-  detail and the inspector's 280: a detail given less than it can shrink to
-  makes AppKit throw when Settings opens (the doc comment has the example).
+  `settingsInspector(isPresented:settings:)` (the trailing inspector in
+  two columns, a sheet with Done in one), attached once to the whole split
+  view on every platform: inside the detail column, on a Mac, it made
+  AppKit widen the window pass after pass until it threw (Applications,
+  9 Nov 2026). The detail column sets its own minimum width, and a Mac
+  window's minimum fits the sidebar's ideal width, the detail's minimum and
+  the inspector's 320 (the doc comment has the example). The older
+  `settingsInspector(isPresented:attachedTo:settings:)` still compiles:
+  its `.splitView` attachment presents and its `.detail` one does nothing.
   The standalone tab apps (Visor, Issues,
   Reviews, Applications, Monitor) each take `settingsPresented:
   Binding<Bool>` on their top-level view and show Settings this way, the
