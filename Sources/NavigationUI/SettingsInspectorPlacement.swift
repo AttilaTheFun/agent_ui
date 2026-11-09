@@ -1,23 +1,36 @@
-/// Where an app attached `settingsInspector(isPresented:attachedTo:)`: since
-/// 0.49 the whole split view on every platform (`settingsInspector(isPresented:settings:)`
-/// attaches it there in one call), and an attachment on the detail column
-/// does nothing.
+/// Where an app attaches `settingsInspector(isPresented:attachedTo:)`, which
+/// takes effect only where the placement is the platform's: on a Mac the
+/// detail column, on an iPhone, an iPad and Isomer's platforms the whole
+/// split view, as in 0.48 (0.50 restored it after 0.49 moved the Mac to the
+/// split view). An app attaches at both, and each platform takes its own.
+/// `settingsInspector(isPresented:settings:)` is the other choice: the whole
+/// split view on every platform, attached once.
 ///
-/// - On a Mac an inspector anywhere in the detail column, closed or open, set
-///   AppKit's update-constraints pass widening the window each pass when the
-///   detail's stack changed its root (a selection), until it threw
-///   NSGenericException; on the whole split view it doesn't (Applications'
-///   finding, 9 Nov 2026: its window went from 1,200 to 4,287 points wide).
-///   The detail's own minimum width (`navigationSplitViewColumnWidth`) is
-///   what keeps the inspector from pushing the other columns out.
+/// Which fits an app on a Mac is its detail's to say (9 Nov 2026, real apps
+/// on macOS 27):
+/// - The detail column: Issues, Reviews and Monitor present and close it
+///   cleanly across selection changes. Applications' detail, whose stack's
+///   root changes with the selection, crashed with it there even closed:
+///   the split view took a new minimum from the detail each
+///   update-constraints pass until AppKit threw.
+/// - The whole split view: Applications' selection changes are clean, but
+///   it clipped Issues' columns and Settings at 1,280 points, and Reviews'
+///   inside Shireworks' tab view. The window's minimum must hold the
+///   sidebar's ideal width, the detail's minimum and the inspector's 320.
 /// - On an iPad the inspector on the detail column took the detail's
 ///   navigation title and dimmed it; on the whole split view it doesn't.
 public enum SettingsInspectorPlacement: Sendable {
-    /// The split view's detail column: no longer presents (0.49).
+    /// The split view's detail column: a Mac's.
     case detail
-    /// The whole split view: every platform's.
+    /// The whole split view: an iPhone's, an iPad's, Isomer's.
     case splitView
 
-    /// The platform's own: the whole split view, everywhere.
-    static var platform: SettingsInspectorPlacement { .splitView }
+    /// The platform's own.
+    static var platform: SettingsInspectorPlacement {
+        #if os(macOS)
+        .detail
+        #else
+        .splitView
+        #endif
+    }
 }
