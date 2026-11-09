@@ -4,23 +4,20 @@ extension View {
     /// The app's Settings, as `SettingsInspectorButton` opens it: the split
     /// view's trailing inspector in two columns (a Mac's window, an iPad's),
     /// and in one (a phone, a narrow window) a sheet with Done, since an
-    /// inspector on a collapsed split view does not present. Attach it twice,
-    /// on the split view's detail column (`.detail`) and on the whole split
-    /// view (`.splitView`): each takes effect only where it is the platform's
-    /// place (`SettingsInspectorPlacement`), the other doing nothing. While it
-    /// is open it takes the trailing side, so an app closes any inspector of
-    /// its own first. Settings asked for at once (signed out, say) opens just
-    /// after the window's first layout, never during it.
+    /// inspector on a collapsed split view does not present. Attached to the
+    /// whole `NavigationSplitView`, never inside its detail column
+    /// (`SettingsInspectorPlacement`: on a Mac one there makes AppKit widen
+    /// the window until it throws). While it is open it takes the trailing
+    /// side, so an app closes any inspector of its own first. Settings asked
+    /// for at once (signed out, say) opens just after the window's first
+    /// layout, never during it.
     ///
     /// Widths: the detail column says its own minimum
     /// (`navigationSplitViewColumnWidth(min:ideal:)`), the narrowest its
-    /// content really lays out in, and the app's window has a minimum that
-    /// fits the sidebar, that and the inspector's 280 points. When the three
-    /// don't fit, the sidebar is squeezed, and on macOS a detail that can't
-    /// shrink as far as it is given sends AppKit's update-constraints pass
-    /// round until it throws NSGenericException ("more Update Constraints in
-    /// Window passes than there are views in the window") the moment Settings
-    /// opens (Monitor, 9 Nov 2026: a 900-point window left its dashboard 390).
+    /// content really lays out in, and the app's Mac window has a minimum
+    /// that fits the sidebar's ideal width, the detail's minimum and the
+    /// inspector's ideal (320): AppKit lays the columns out at their ideal
+    /// widths, not their minimums, and gives the detail what is left.
     ///
     ///     NavigationSplitView {
     ///         Sidebar()
@@ -28,11 +25,19 @@ extension View {
     ///     } detail: {
     ///         Detail()
     ///             .navigationSplitViewColumnWidth(min: 560, ideal: 640)
-    ///             .settingsInspector(isPresented: $settingsPresented, attachedTo: .detail) { SettingsForm() }
     ///     }
-    ///     // On a Mac the window's minimum is 230 + 560 + 280 = 1,070 or more:
-    ///     // .frame(minWidth: 1_100), with a default size above it.
-    ///     .settingsInspector(isPresented: $settingsPresented, attachedTo: .splitView) { SettingsForm() }
+    ///     .settingsInspector(isPresented: $settingsPresented) { SettingsForm() }
+    ///     // On a Mac the window's minimum is 270 + 560 + 320 = 1,150 or more:
+    ///     // .frame(minWidth: 1_160), with a default size above it.
+    public func settingsInspector<Settings: View>(isPresented: Binding<Bool>,
+                                                  @ViewBuilder settings: @escaping () -> Settings) -> some View {
+        modifier(SettingsInspectorPresentation(isPresented: isPresented, settings: settings))
+    }
+
+    /// Before 0.49 an app attached Settings twice, on the detail column and
+    /// on the whole split view, and each platform took one. Now the split
+    /// view's presents everywhere and the detail column's does nothing:
+    /// attach once, with `settingsInspector(isPresented:settings:)`.
     @ViewBuilder public func settingsInspector<Settings: View>(isPresented: Binding<Bool>, attachedTo placement: SettingsInspectorPlacement,
                                                               @ViewBuilder settings: @escaping () -> Settings) -> some View {
         if placement == SettingsInspectorPlacement.platform {
