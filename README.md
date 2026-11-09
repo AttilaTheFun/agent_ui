@@ -35,8 +35,11 @@ reimplementation of the same API, so one source builds everywhere.
   `adaptiveInspector(isPresented:compact:)` (an inspector, or a sheet on a
   phone), `EmptyDetail`, and the app's Settings: `SettingsInspectorButton`
   (a navigation-bar "Settings" with a gear, toggling `isPresented`) and
-  `settingsInspector(isPresented:settings:)` (the trailing inspector in two
-  columns, a sheet with Done in one). The standalone tab apps (Visor, Issues,
+  `settingsInspector(isPresented:attachedTo:settings:)` (the trailing
+  inspector in two columns, a sheet with Done in one; attached both on the
+  detail column and on the whole split view, it takes effect at the
+  platform's own place: the detail column on a Mac, the split view
+  elsewhere, as Issues found on a Mac and an iPad). The standalone tab apps (Visor, Issues,
   Reviews, Applications, Monitor) each take `settingsPresented:
   Binding<Bool>` on their top-level view and show Settings this way, the
   view Shireworks embeds as one tab. The button is the only way to Settings:
