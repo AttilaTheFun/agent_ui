@@ -39,7 +39,11 @@ reimplementation of the same API, so one source builds everywhere.
   inspector in two columns, a sheet with Done in one; attached both on the
   detail column and on the whole split view, it takes effect at the
   platform's own place: the detail column on a Mac, the split view
-  elsewhere, as Issues found on a Mac and an iPad). The standalone tab apps (Visor, Issues,
+  elsewhere, as Issues found on a Mac and an iPad). The detail column sets
+  its own minimum width and a Mac window's minimum fits the sidebar, the
+  detail and the inspector's 280: a detail given less than it can shrink to
+  makes AppKit throw when Settings opens (the doc comment has the example).
+  The standalone tab apps (Visor, Issues,
   Reviews, Applications, Monitor) each take `settingsPresented:
   Binding<Bool>` on their top-level view and show Settings this way, the
   view Shireworks embeds as one tab. The button is the only way to Settings:
