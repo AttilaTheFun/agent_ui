@@ -12,12 +12,13 @@
 # The proof, in <dir>, kept flat as the run's `proof` artifact (GitHub zips
 # it, so its download is proof.zip as a release keeps it):
 #   proof.json                 format 2: each demo app's first screen an item,
-#                              ios/phone/<demo> (agent-example, split-example,
-#                              stack-example, tabbed-example), with its sha256
+#                              ios/phone/<demo> (agent-example, tabbed-example)
+#                              or ios/pad/<demo> (split-example, stack-example,
+#                              pictured on an iPad), with its sha256
 #                              and size; and, with --tests (hosted_tests.sh's
 #                              --logs), tests/macos, the bundles' counts from
 #                              XCTest's last "Executed N tests, with M failures"
-#   screens/ios/phone/<demo>.png
+#   screens/ios/{phone,pad}/<demo>.png
 #   logs/macos.txt             the bundles' logs, with --tests
 # --version is what it is a proof of (a release's proposal gives it), else the
 # newest v* tag's. The script fails as Tools/proof.sh does, or when no picture
@@ -90,13 +91,16 @@ for path in sorted(glob.glob(os.path.join(pictures, "*.png"))):
     name = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "-", stem).lower()
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", name):
         sys.exit(f"hosted_proof: {stem}.png makes no id")
-    file = f"screens/ios/phone/{name}.png"
+    # The device Tools/proof.sh's device_for pictured it on: an iPad for
+    # the two whose sidebars show there, an iPhone for the others.
+    device, on = ("pad", "an iPad") if stem in ("SplitExample", "StackExample") else ("phone", "an iPhone")
+    file = f"screens/ios/{device}/{name}.png"
     os.makedirs(os.path.dirname(os.path.join(proof, file)), exist_ok=True)
     shutil.copyfile(path, os.path.join(proof, file))
     data = open(path, "rb").read()
     width, height = struct.unpack(">II", data[16:24])
     title = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", stem)
-    items.append({"id": f"ios/phone/{name}", "kind": "screen", "title": f"{title} on an iPhone", "file": file,
+    items.append({"id": f"ios/{device}/{name}", "kind": "screen", "title": f"{title} on {on}", "file": file,
                   "sha256": hashlib.sha256(data).hexdigest(), "width": width, "height": height})
 if not items:
     sys.exit("hosted_proof: no pictures came back")
