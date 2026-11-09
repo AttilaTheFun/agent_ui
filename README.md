@@ -38,9 +38,9 @@ reimplementation of the same API, so one source builds everywhere.
   `settingsInspector(isPresented:settings:)` (the trailing inspector in two
   columns, a sheet with Done in one). The standalone tab apps (Visor, Issues,
   Reviews, Applications, Monitor) each take `settingsPresented:
-  Binding<Bool>` on their top-level view and show Settings this way, so that
-  Shireworks, which embeds each as one tab, toggles it with its own ⌘,. The
-  library gives no shortcut.
+  Binding<Bool>` on their top-level view and show Settings this way, the
+  view Shireworks embeds as one tab. The button is the only way to Settings:
+  no shortcut, here or in Shireworks (Logan, 9 Nov 2026).
 
 InboxUI and MessagesUI re-export **MessagesCore**: the model values
 (`ConversationSummary`, `MessageItem`, `MessageContent`), `MessagesTheme`
