@@ -10,16 +10,28 @@ extension View {
     /// place (`SettingsInspectorPlacement`), the other doing nothing. While it
     /// is open it takes the trailing side, so an app closes any inspector of
     /// its own first. Settings asked for at once (signed out, say) opens just
-    /// after the window's first layout, never during it. The app gives its
-    /// window a minimum width that fits every column, the inspector's 280
-    /// points included, or the sidebar is squeezed.
+    /// after the window's first layout, never during it.
+    ///
+    /// Widths: the detail column says its own minimum
+    /// (`navigationSplitViewColumnWidth(min:ideal:)`), the narrowest its
+    /// content really lays out in, and the app's window has a minimum that
+    /// fits the sidebar, that and the inspector's 280 points. When the three
+    /// don't fit, the sidebar is squeezed, and on macOS a detail that can't
+    /// shrink as far as it is given sends AppKit's update-constraints pass
+    /// round until it throws NSGenericException ("more Update Constraints in
+    /// Window passes than there are views in the window") the moment Settings
+    /// opens (Monitor, 9 Nov 2026: a 900-point window left its dashboard 390).
     ///
     ///     NavigationSplitView {
     ///         Sidebar()
+    ///             .navigationSplitViewColumnWidth(min: 230, ideal: 270)
     ///     } detail: {
     ///         Detail()
+    ///             .navigationSplitViewColumnWidth(min: 560, ideal: 640)
     ///             .settingsInspector(isPresented: $settingsPresented, attachedTo: .detail) { SettingsForm() }
     ///     }
+    ///     // On a Mac the window's minimum is 230 + 560 + 280 = 1,070 or more:
+    ///     // .frame(minWidth: 1_100), with a default size above it.
     ///     .settingsInspector(isPresented: $settingsPresented, attachedTo: .splitView) { SettingsForm() }
     @ViewBuilder public func settingsInspector<Settings: View>(isPresented: Binding<Bool>, attachedTo placement: SettingsInspectorPlacement,
                                                               @ViewBuilder settings: @escaping () -> Settings) -> some View {
@@ -36,10 +48,11 @@ extension View {
 private struct SettingsInspectorPresentation<Settings: View>: ViewModifier {
     @Binding var isPresented: Bool
     let settings: () -> Settings
-    /// The window has been laid out once. Until then nothing is presented:
-    /// on macOS an inspector opened during the window's first layout throws
-    /// NSGenericException ("more Update Constraints in Window passes than
-    /// there are views in the window"), found by Issues on a Mac, 9 Nov 2026.
+    /// The window has been laid out once. Until then nothing is presented,
+    /// so the inspector never joins the window's first layout. (The
+    /// NSGenericException Issues and Monitor met opening Settings on a Mac
+    /// turned out to be columns that didn't fit, at launch or later: the
+    /// widths in `settingsInspector`'s documentation are the fix.)
     @State private var laidOut = false
     #if !os(macOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
