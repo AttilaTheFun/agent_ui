@@ -33,7 +33,14 @@ reimplementation of the same API, so one source builds everywhere.
 - **NavigationUI** — `SplitView` (sidebar, detail, inspector; the app's
   column bindings), `InspectorView` (a pane's frame with the X),
   `adaptiveInspector(isPresented:compact:)` (an inspector, or a sheet on a
-  phone), `EmptyDetail`.
+  phone), `EmptyDetail`, and the app's Settings: `SettingsInspectorButton`
+  (a navigation-bar "Settings" with a gear, toggling `isPresented`) and
+  `settingsInspector(isPresented:settings:)` (the trailing inspector in two
+  columns, a sheet with Done in one). The standalone tab apps (Visor, Issues,
+  Reviews, Applications, Monitor) each take `settingsPresented:
+  Binding<Bool>` on their top-level view and show Settings this way, so that
+  Shireworks, which embeds each as one tab, toggles it with its own ⌘,. The
+  library gives no shortcut.
 
 InboxUI and MessagesUI re-export **MessagesCore**: the model values
 (`ConversationSummary`, `MessageItem`, `MessageContent`), `MessagesTheme`

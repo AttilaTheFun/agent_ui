@@ -22,7 +22,8 @@ let package = Package(
         // lists, quotes, code that wraps, tables), the agent's messages' and
         // any app's.
         .library(name: "MarkdownViews", targets: ["MarkdownViews"]),
-        // The containers: `SplitView`, `InspectorView`, `EmptyDetail`.
+        // The containers: `SplitView`, `InspectorView`, `EmptyDetail`, and
+        // the app's Settings (`SettingsInspectorButton`, `settingsInspector`).
         .library(name: "NavigationUI", targets: ["NavigationUI"]),
         // The examples' fake data source, so the Xcode example apps can link it.
         .library(name: "ExampleData", targets: ["ExampleData"]),
