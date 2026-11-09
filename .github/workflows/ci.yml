@@ -153,12 +153,14 @@ jobs:
           path: ${{ runner.temp }}/test-logs
           retention-days: 7
 
-  # The proof: the demo apps' first screens, made on one of GitHub's Macs
-  # (Tools/ci/hosted_proof.sh), and how each differs from its picture kept
-  # at the previous release (Tests/Proof at the newest v* tag before the
-  # commit, else the commit before), kept as the `proof` artifact Reviews
-  # reads. It passes only when the tests did too: its success is the commit
-  # verified, which propose and the release job ask for.
+  # The proof: the demo apps' first screens, made on one of GitHub's Macs,
+  # and the tests' counts, in AttilaTheFun/reviews' proof format 2
+  # (Tools/ci/hosted_proof.sh), kept flat as the `proof` artifact. Nothing is
+  # compared here: Reviews compares a release's proof with the prior
+  # release's, item by item (Logan, 8 Nov 2026), and a release's proposal
+  # attaches it to the draft as proof.zip. It passes only when the tests did
+  # too: its success is the commit verified, which propose and the release
+  # job ask for.
   verify:
     needs: test
     if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
@@ -167,15 +169,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # The history and the tags: the previous release's kept pictures
-          # are what the screens are compared with.
+          # The tags: a run by hand's proof says the newest's version.
           fetch-depth: 0
           fetch-tags: true
+      # The tests' logs, for the proof's tests item (the test job keeps them
+      # whatever its result).
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-logs
+          path: ${{ runner.temp }}/test-logs
+      # Untrusted text reaches the shell through env, never ${{ }} in run.
       - name: The demo apps, built and pictured, and the proof
-        run: |
-          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^ 2> /dev/null || git rev-parse HEAD^)"
-          echo "Compared with $base"
-          Tools/ci/hosted_proof.sh --kind full --base "$base" --proof "$RUNNER_TEMP/proof"
+        env:
+          VERSION: ${{ inputs.version }}
+        run: Tools/ci/hosted_proof.sh --proof "$RUNNER_TEMP/proof" --tests "$RUNNER_TEMP/test-logs" ${VERSION:+--version "$VERSION"}
       # The proof whether the apps came up or not: a broken screen is what it's for.
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
@@ -218,11 +226,16 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+      # The proof verify made, for the draft as proof.zip.
+      - uses: actions/download-artifact@v4
+        with:
+          name: proof
+          path: ${{ runner.temp }}/proof
       # Untrusted text reaches the shell through env, never ${{ }} in run.
       - env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
-        run: Tools/ci/propose_release.sh "$VERSION"
+        run: Tools/ci/propose_release.sh "$VERSION" "$RUNNER_TEMP/proof"
 
   # ---- Released ------------------------------------------------------------
 

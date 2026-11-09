@@ -9,16 +9,20 @@
 # run's token does (contents: write). Only curl and Python: no gh on the
 # runners.
 #
-#   Tools/ci/propose_release.sh <version>
+#   Tools/ci/propose_release.sh <version> [<proof>]
 #
-# <version>: MAJOR.MINOR.PATCH, newer than every v* tag.
+# <version>: MAJOR.MINOR.PATCH, newer than every v* tag. <proof>: the run's
+# `proof` artifact as downloaded (proof.json and its files, format 2), put on
+# the draft as proof.zip, so the release keeps it and Reviews compares the next
+# release's with it (AttilaTheFun/reviews' docs/PROOF_FORMAT.md).
 #
 #   GH_TOKEN           the job's token (contents: write)
 #   GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_SERVER_URL, GITHUB_RUN_ID
 #                      a job has them
 set -euo pipefail
 me="$(basename "$0")"
-version="${1:?usage: $me <version>}"
+version="${1:?usage: $me <version> [<proof>]}"
+proof="${2:-}"
 for name in GH_TOKEN GITHUB_REPOSITORY GITHUB_SHA GITHUB_SERVER_URL GITHUB_RUN_ID; do
     [ -n "${!name:-}" ] || { echo "$me: no $name" >&2; exit 1; }
 done
@@ -99,3 +103,26 @@ tag, sha, prerelease = sys.argv[2], sys.argv[3], sys.argv[4] == "true"
 sys.exit(0 if r["draft"] and r["tag_name"] == tag and r["target_commitish"] == sha and r["prerelease"] == prerelease else 1)' \
     "$work/kept.json" "$tag" "$GITHUB_SHA" false \
     || { echo "::error::the draft of $tag isn't as asked: look at the repository's releases"; exit 1; }
+
+# The proof on the draft, as proof.zip: proof.json at its top, its files
+# beside it. One there already (a run again for the same version) is replaced.
+if [ -n "$proof" ]; then
+    [ -f "$proof/proof.json" ] || { echo "::error::$proof has no proof.json"; exit 1; }
+    python3 -I - "$proof" "$work/proof.zip" << 'PY'
+import os, sys, zipfile
+source, target = sys.argv[1:3]
+with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as made:
+    for top, _, files in os.walk(source):
+        for name in sorted(files):
+            path = os.path.join(top, name)
+            made.write(path, os.path.relpath(path, source))
+PY
+    github "$api/releases/$made/assets?per_page=100" > "$work/assets.json"
+    old="$(python3 -I -c 'import json, sys
+print(next((str(a["id"]) for a in json.load(open(sys.argv[1])) if a["name"] == "proof.zip"), ""))' "$work/assets.json")"
+    [ -z "$old" ] || github -X DELETE "$api/releases/assets/$old" > /dev/null
+    uploads="https://uploads.github.com/repos/$GITHUB_REPOSITORY"
+    github -X POST -H 'Content-Type: application/zip' --data-binary @"$work/proof.zip" \
+        "$uploads/releases/$made/assets?name=proof.zip" > /dev/null
+    echo "proof.zip attached to the draft of $tag ($(wc -c < "$work/proof.zip" | tr -d ' ') bytes)"
+fi

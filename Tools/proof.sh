@@ -1,8 +1,8 @@
 #!/bin/bash
 # The demo apps' first screens (Examples/: AgentExample, SplitExample,
 # StackExample, TabbedExample), each built for the simulator, launched and
-# pictured. CI runs it on one of GitHub's Macs (Tools/ci/hosted_proof.sh) and
-# compares the pictures with Tests/Proof; run here, it is a look before
+# pictured. CI runs it on one of GitHub's Macs (Tools/ci/hosted_proof.sh),
+# which makes the release's proof of them; run here, it is a look before
 # pushing.
 #
 #   Tools/proof.sh [version]          -> .proof/review-ios (or $PROOF_DIR)

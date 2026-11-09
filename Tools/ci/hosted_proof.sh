@@ -2,24 +2,27 @@
 # AgentUI's proof, on one of GitHub's own Macs (`xcode-27`: Xcode 27.2 and
 # its iOS simulators), which a public repository has for free, leaving OS
 # Server's macOS VMs to the agents (Logan, 5 Nov 2026): the four demo apps
-# built and pictured by Tools/proof.sh, and each picture compared with the
-# one kept for it at the base (CI: the previous release, else the commit
-# before; else this commit).
+# built and pictured by Tools/proof.sh, in AttilaTheFun/reviews' proof format
+# 2 (docs/PROOF_FORMAT.md). Nothing is compared here: Reviews compares a
+# release's proof with the prior release's, item by item, by id (Logan, 8 Nov
+# 2026).
 #
-#   Tools/ci/hosted_proof.sh --proof <dir> [--kind quick|full] [--base <revision>]
+#   Tools/ci/hosted_proof.sh --proof <dir> [--tests <test logs>] [--version <version>]
 #
-# The proof, in <dir>, as Reviews reads it from the run's `proof` artifact:
-#   screens/<name>.png  each demo app's first screen at this commit
-#   before/<name>.png   each that differs, as kept at the base (none for a
-#                       screen the base hasn't got)
-#   diffs/<name>.png    each that differs from its picture kept at the base (Tests/Proof),
-#                       its changed pixels red (Tools/ci/snapshot_diff.swift,
-#                       CoreGraphics)
-#   proof.json          {"commit", "ref", "kind", "run", "base": {"commit"},
-#                        "screens": [{"name", "changed", "changedPixels"}]}
-# The script fails as Tools/proof.sh does, or when no picture comes back.
+# The proof, in <dir>, kept flat as the run's `proof` artifact (GitHub zips
+# it, so its download is proof.zip as a release keeps it):
+#   proof.json                 format 2: each demo app's first screen an item,
+#                              ios/phone/<demo> (agent-example, split-example,
+#                              stack-example, tabbed-example), with its sha256
+#                              and size; and, with --tests (hosted_tests.sh's
+#                              --logs), tests/macos, the bundles' counts from
+#                              XCTest's last "Executed N tests, with M failures"
+#   screens/ios/phone/<demo>.png
+#   logs/macos.txt             the bundles' logs, with --tests
+# --version is what it is a proof of (a release's proposal gives it), else the
+# newest v* tag's. The script fails as Tools/proof.sh does, or when no picture
+# comes back.
 #
-#   PROOF_REF      the ref the proof is of (default: GITHUB_REF, else the branch)
 #   DEVELOPER_DIR  the Xcode (default: Xcode 27.2 where the image has it)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -27,27 +30,25 @@ me="$(basename "$0")"
 XCODEGEN_URL="https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip"
 XCODEGEN_SHA256="4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
 
-usage() { echo "usage: Tools/ci/hosted_proof.sh --proof <dir> [--kind quick|full] [--base <revision>]" >&2; exit 2; }
+usage() { echo "usage: Tools/ci/hosted_proof.sh --proof <dir> [--tests <test logs>] [--version <version>]" >&2; exit 2; }
 proof=""
-kind="quick"
-base="HEAD"
+tests=""
+version=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --proof) proof="${2:?--proof takes a folder}"; shift 2 ;;
-        --kind) kind="${2:?--kind takes quick or full}"; shift 2 ;;
-        --base) base="${2:?--base takes a revision}"; shift 2 ;;
+        --tests) tests="${2:?--tests takes the folder of hosted_tests.sh logs}"; shift 2 ;;
+        --version) version="${2:?--version takes a version}"; shift 2 ;;
         *) usage ;;
     esac
 done
 [ -n "$proof" ] || usage
-case "$kind" in quick | full) ;; *) usage ;; esac
 if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode_27.2.app ]; then
     export DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer
 fi
 
 commit="$(git -C "$ROOT" rev-parse HEAD)"
-base_commit="$(git -C "$ROOT" rev-parse --verify "$base^{commit}")" || { echo "$me: no revision $base to compare with" >&2; exit 1; }
-ref="${PROOF_REF:-${GITHUB_REF:-refs/heads/$(git -C "$ROOT" branch --show-current)}}"
+[ -n "$version" ] || version="$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v[0-9]*' 2> /dev/null | sed 's/^v//')"
 
 work="$(mktemp -d)"
 finished=""
@@ -61,7 +62,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "::group::Xcode, XcodeGen and the diff tool"
+echo "::group::Xcode and XcodeGen"
 xcodebuild -version | head -1
 xcrun simctl list runtimes | grep -i '^ios' || true
 # XcodeGen's release, checked against the sum above.
@@ -69,11 +70,6 @@ curl -fsSL -o "$work/xcodegen.zip" "$XCODEGEN_URL"
 echo "$XCODEGEN_SHA256  $work/xcodegen.zip" | shasum -a 256 -c - > /dev/null
 (cd "$work" && unzip -q -o xcodegen.zip && chmod +x xcodegen/bin/xcodegen)
 export PATH="$work/xcodegen/bin:$PATH"
-# The diff tool before the apps: a broken one fails before they're built.
-xcrun swiftc -O -o "$work/snapshot_diff" "$ROOT/Tools/ci/snapshot_diff.swift"
-# The pictures kept at the base, what the screens are compared with.
-mkdir -p "$work/base"
-git -C "$ROOT" archive "$base_commit" Tests/Proof | tar -x -C "$work/base"
 echo "::endgroup::"
 
 echo "::group::Tools/proof.sh: the demo apps, built and pictured"
@@ -81,54 +77,54 @@ status=0
 (cd "$ROOT" && PROOF_DIR="$work/out" Tools/proof.sh ci) || status=$?
 echo "::endgroup::"
 
-# The proof, from the screens and how each compared with the base.
-json() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-mkdir -p "$proof/screens" "$proof/diffs" "$proof/before"
-screens=""
-summary=""
-for picture in "$work/out/review-ios"/*.png; do
-    [ -e "$picture" ] || continue
-    name="$(basename "$picture" .png)"
-    kept="$work/base/Tests/Proof/$name.png"
-    cp "$picture" "$proof/screens/$name.png"
-    if ! pixels="$("$work/snapshot_diff" "$kept" "$picture" "$work/diff.png")"; then
-        echo "$me: $name was not compared" >&2
-        [ "$status" -ne 0 ] || status=1
-        continue
-    fi
-    changed=false
-    if [ "$pixels" -ne 0 ]; then
-        changed=true
-        [ ! -f "$work/diff.png" ] || mv "$work/diff.png" "$proof/diffs/$name.png"
-        [ ! -f "$kept" ] || cp "$kept" "$proof/before/$name.png"
-    fi
-    rm -f "$work/diff.png"
-    screens="$screens${screens:+,}
-    {\"name\": \"$(json "$name")\", \"changed\": $changed, \"changedPixels\": $pixels}"
-    summary="$summary| $name | $([ "$changed" = true ] && echo "$pixels pixels changed" || echo unchanged) |
-"
-done
-cp "$work/out/review-ios/manifest.json" "$proof/" 2> /dev/null || true
+# The proof (format 2): the screens, then the tests.
+mkdir -p "$proof"
 cp "$work/out"/build-*.log "$proof/" 2> /dev/null || true
-cat > "$proof/proof.json" << EOF
-{
-  "commit": "$commit",
-  "ref": "$(json "$ref")",
-  "kind": "$kind",
-  "run": ${GITHUB_RUN_ID:-null},
-  "base": {"commit": "$base_commit"},
-  "screens": [$screens
-  ]
-}
-EOF
-cat "$proof/proof.json"
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    printf '### Proof (%s) of %s\n\n| Screen | Against its picture kept at %s |\n| --- | --- |\n%s' "$kind" "${commit:0:7}" "${base_commit:0:7}" "$summary" >> "$GITHUB_STEP_SUMMARY"
-fi
-
-if [ -z "$screens" ]; then
-    echo "$me: no pictures came back" >&2
-    [ "$status" -ne 0 ] || status=1
-fi
+python3 -I - "$work/out/review-ios" "$proof" "$version" "$commit" "${GITHUB_REPOSITORY:-AttilaTheFun/agent_ui}" "${GITHUB_RUN_ID:-}" "$tests" << 'PY' || status=1
+import datetime, glob, hashlib, json, os, re, shutil, struct, sys
+pictures, proof, version, commit, repository, run, tests = sys.argv[1:8]
+items = []
+for path in sorted(glob.glob(os.path.join(pictures, "*.png"))):
+    stem = os.path.basename(path)[:-4]
+    # AgentExample -> agent-example: stable from release to release.
+    name = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "-", stem).lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", name):
+        sys.exit(f"hosted_proof: {stem}.png makes no id")
+    file = f"screens/ios/phone/{name}.png"
+    os.makedirs(os.path.dirname(os.path.join(proof, file)), exist_ok=True)
+    shutil.copyfile(path, os.path.join(proof, file))
+    data = open(path, "rb").read()
+    width, height = struct.unpack(">II", data[16:24])
+    title = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", stem)
+    items.append({"id": f"ios/phone/{name}", "kind": "screen", "title": f"{title} on an iPhone", "file": file,
+                  "sha256": hashlib.sha256(data).hexdigest(), "width": width, "height": height})
+if not items:
+    sys.exit("hosted_proof: no pictures came back")
+if tests:
+    count = failures = 0
+    logs = sorted(glob.glob(os.path.join(tests, "*", "test.log")))
+    os.makedirs(os.path.join(proof, "logs"), exist_ok=True)
+    with open(os.path.join(proof, "logs", "macos.txt"), "w") as out:
+        for log in logs:
+            text = open(log, errors="replace").read()
+            out.write(f"== {os.path.basename(os.path.dirname(log))}\n{text}\n")
+            executed = re.findall(r"Executed (\d+) tests?, with (\d+) failures?", text)
+            if executed:
+                count += int(executed[-1][0]); failures += int(executed[-1][1])
+    items.append({"id": "tests/macos", "kind": "tests", "title": "macOS", "result": "passed" if logs and failures == 0 else "failed",
+                  "tests": count, "failures": failures, "log": "logs/macos.txt"})
+document = {"format": 2, "app": "AgentUI", "version": version, "repository": repository, "commit": commit,
+            "run": int(run) if run else None, "made": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "items": items}
+with open(os.path.join(proof, "proof.json"), "w") as f:
+    json.dump(document, f, indent=2); f.write("\n")
+print(json.dumps(document, indent=2))
+summary = os.environ.get("GITHUB_STEP_SUMMARY")
+if summary:
+    lines = [f"### Proof of {commit[:7]} ({version}), format 2", "", "Reviews compares it with the prior release's, item by item.", "",
+             "| Item | |", "| --- | --- |"]
+    lines += [f"| {i['id']} | " + (f"{i['width']}×{i['height']}" if i["kind"] == "screen" else f"{i['result']}: {i['tests']} tests, {i['failures']} failures") + " |" for i in items]
+    open(summary, "a").write("\n".join(lines) + "\n")
+PY
 finished=1
 exit "$status"

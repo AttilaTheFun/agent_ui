@@ -106,16 +106,15 @@ main's commits only build). The `verify` job runs
 for a public repository, leaving OS Server's macOS VMs to the agents:
 Logan, 5 Nov 2026). It runs `Tools/proof.sh` there, which builds the four
 example apps for the iPhone simulator and pictures each one's first screen,
-and compares each picture with the one kept for it in `Tests/Proof` at the
-previous release (the newest `v*` tag before the commit, else the commit
-before), so it shows every change since, and uploads the `proof` artifact:
-`screens/`, `before/` and `diffs/` (only what changed) and `proof.json`. Reviews reads it
-straight from GitHub by commit: no release is made without a proof of its
-commit, and that proof is the one reviewed. To bisect a regression, prove
-an earlier commit after the fact: push a branch at it and run the workflow
-on that branch. Nothing is filed by hand. A change that is meant to look
-different takes its new screens into `Tests/Proof` in its pull request
-(`Tools/proof.sh` makes them), or right after from main's `proof` artifact.
+and writes the `proof` artifact in AttilaTheFun/reviews' format 2
+(docs/PROOF_FORMAT.md): `proof.json`, the screens, and the macOS test
+run's result from the `test` job's logs. Nothing is compared here: Reviews
+compares a proof with the previous release's, whose `proof.zip` the
+proposal attached to its draft (`Tools/ci/propose_release.sh`), and shows
+what changed. No release is made without a proof of its commit, and that
+proof is the one reviewed. To bisect a regression, prove an earlier commit
+after the fact: push a branch at it and run the workflow on that branch.
+Nothing is filed by hand and no pictures are kept in the repository.
 
 `Tools/proof.sh` makes the same pictures on your own Mac, to look at before
 pushing.
