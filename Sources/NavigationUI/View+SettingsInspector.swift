@@ -4,19 +4,30 @@ extension View {
     /// The app's Settings, as `SettingsInspectorButton` opens it: the split
     /// view's trailing inspector in two columns (a Mac's window, an iPad's),
     /// and in one (a phone, a narrow window) a sheet with Done, since an
-    /// inspector on a collapsed split view does not present. Put it on the
-    /// app's top-level view, the one that takes `settingsPresented`; while it
+    /// inspector on a collapsed split view does not present. Attach it twice,
+    /// on the split view's detail column (`.detail`) and on the whole split
+    /// view (`.splitView`): each takes effect only where it is the platform's
+    /// place (`SettingsInspectorPlacement`), the other doing nothing. While it
     /// is open it takes the trailing side, so an app closes any inspector of
     /// its own first. Settings asked for at once (signed out, say) opens just
     /// after the window's first layout, never during it. The app gives its
     /// window a minimum width that fits every column, the inspector's 280
     /// points included, or the sidebar is squeezed.
     ///
-    ///     SplitView(…)
-    ///         .settingsInspector(isPresented: $settingsPresented) { SettingsForm() }
-    public func settingsInspector<Settings: View>(isPresented: Binding<Bool>,
-                                                 @ViewBuilder settings: @escaping () -> Settings) -> some View {
-        modifier(SettingsInspectorPresentation(isPresented: isPresented, settings: settings))
+    ///     NavigationSplitView {
+    ///         Sidebar()
+    ///     } detail: {
+    ///         Detail()
+    ///             .settingsInspector(isPresented: $settingsPresented, attachedTo: .detail) { SettingsForm() }
+    ///     }
+    ///     .settingsInspector(isPresented: $settingsPresented, attachedTo: .splitView) { SettingsForm() }
+    @ViewBuilder public func settingsInspector<Settings: View>(isPresented: Binding<Bool>, attachedTo placement: SettingsInspectorPlacement,
+                                                              @ViewBuilder settings: @escaping () -> Settings) -> some View {
+        if placement == SettingsInspectorPlacement.platform {
+            modifier(SettingsInspectorPresentation(isPresented: isPresented, settings: settings))
+        } else {
+            self
+        }
     }
 }
 
