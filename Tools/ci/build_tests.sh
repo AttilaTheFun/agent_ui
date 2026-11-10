@@ -16,23 +16,17 @@ me="$(basename "$0")"
 out="${1:?usage: Tools/ci/build_tests.sh <out>}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
-# Xcode 27.2's SDK archive, in OS Server's files by its SHA-256.
+# Xcode 27.2's SDK archive, in Shireworks' files by its SHA-256.
 SDK_SHA256="b1583e60f9fd35881b5a948ce71627079877f1ced7ea231e14d3c342dd389668"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# The SDK archive from OS Server's files, its host the first of OSS_SERVERS
-# (OSS_FILES_HOST names another).
-host="${OSS_FILES_HOST:-}"
-if [ -z "$host" ]; then
-    host="${OSS_SERVERS:-}"
-    host="${host%%[ ,]*}"
-    host="${host#*://}"
-    host="${host%%[:/]*}"
-fi
-[ -n "$host" ] || { echo "$me: no host for OS Server's files (OSS_SERVERS): set OSS_FILES_HOST" >&2; exit 1; }
-echo "rewrite apple-sdks\.invalid/.* http://$host:7490/files/sha256/$SDK_SHA256" > "$work/downloader.cfg"
+# The SDK archive from Shireworks' files, at the address its API gives
+# (Tools/ci/shireworks.sh, copied from AttilaTheFun/shireworks).
+url="$(sh "$ROOT/Tools/ci/shireworks.sh" files-url "$SDK_SHA256")" \
+    || { echo "$me: Shireworks didn't say where its files are (SHIREWORKS_GRANT or SHIREWORKS_SERVERS)" >&2; exit 1; }
+echo "rewrite apple-sdks\.invalid/.* $url" > "$work/downloader.cfg"
 flags="--config=apple_on_linux --downloader_config=$work/downloader.cfg"
 
 cd "$ROOT"

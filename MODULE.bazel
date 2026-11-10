@@ -13,7 +13,7 @@ bazel_dep(name = "rules_apple", version = "5.3.1.applecross.3")
 
 # Apple's targets built on Linux (bazel_registry's preset: rules_apple and
 # apple_support with rules_applecross's patches in): Xcode 27.2's SDKs, from
-# an archive the builder's downloader config names (OS Server's files, by
+# an archive the builder's downloader config names (Shireworks' files, by
 # SHA-256), and the Swift that built them.
 bazel_dep(name = "rules_applecross", version = "0.0.3.a4d9f15")
 
