@@ -17,6 +17,15 @@
 ///   it clipped Issues' columns and Settings at 1,280 points, and Reviews'
 ///   inside Shireworks' tab view. The window's minimum must hold the
 ///   sidebar's ideal width, the detail's minimum and the inspector's 320.
+/// - What loops is the detail's content more than the placement: on a Mac,
+///   a grouped `Form` whose rows hold controls of a firm width
+///   (`.fixedSize()` capsules, bordered buttons) kept moving the column's
+///   minimum while the inspector reshaped it, and AppKit's
+///   update-constraints pass went round (a selection change with the detail
+///   placement, Settings opened with either). The same rows in a `List`
+///   were still, with Settings closed and open (Applications, 9 Nov 2026).
+///   On a Mac, a page like that is a `List`, or keeps those controls out
+///   of its rows.
 /// - On an iPad the inspector on the detail column took the detail's
 ///   navigation title and dimmed it; on the whole split view it doesn't.
 public enum SettingsInspectorPlacement: Sendable {
