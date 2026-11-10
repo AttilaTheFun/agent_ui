@@ -103,6 +103,8 @@ public struct AgentView<Controls: View, Attachments: View>: View {
     @State private var sendingNow = false
     /// The composer's height, for the thread to keep its bottom above it.
     @State private var composerHeight: CGFloat = 0
+    /// The experiment's switch.
+    private static var composerHeightOff: Bool { true }
     /// How much narrower the transcript's rows are than the composer's
     /// space, which the composer keeps too (RowGutters).
     @State private var gutters = RowGutters()
@@ -161,7 +163,10 @@ public struct AgentView<Controls: View, Attachments: View>: View {
                         // that differs by a fraction would write again and
                         // lay the screen out once more for nothing.
                         Color.clear.onChange(of: proxy.size.height.rounded(), initial: true) { _, height in
-                            if abs(height - composerHeight) >= 1 { composerHeight = height }
+                            // Experiment (Visor's Mac proof, 10 Nov 2026): the
+                            // height not written, to see whether this write in
+                            // layout sends a squeezed chat round.
+                            if !Self.composerHeightOff, abs(height - composerHeight) >= 1 { composerHeight = height }
                         }
                     })
             }
