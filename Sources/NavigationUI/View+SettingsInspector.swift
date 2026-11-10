@@ -10,9 +10,14 @@ extension View {
     /// selection, which an inspector in the detail column can loop; the
     /// other is `settingsInspector(isPresented:attachedTo:)`, the detail
     /// column there (`SettingsInspectorPlacement` says which fits when).
-    /// While it is open it takes the trailing side, so an app closes any
-    /// inspector of its own first. Settings asked for at once (signed out,
-    /// say) opens just after the window's first layout, never during it.
+    /// It is the window's only inspector: on a Mac a second one on the
+    /// trailing side, even closed (a page's own, attached inside the detail),
+    /// sent AppKit's update-constraints pass round until the app spun or
+    /// threw (Visor's Mac proof, 10 Nov 2026). An app with an inspector of
+    /// its own shows it and Settings in one pane of its own instead (Visor's
+    /// TrailingPane), with `SettingsInspectorButton` opening it. Settings
+    /// asked for at once (signed out, say) opens just after the window's
+    /// first layout, never during it.
     ///
     /// Widths: the detail column says its own minimum, once, on its stack's
     /// root content (`navigationSplitViewColumnWidth(min:ideal:)`), the

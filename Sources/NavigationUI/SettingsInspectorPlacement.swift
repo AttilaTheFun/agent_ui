@@ -27,6 +27,10 @@
 ///   On a Mac, a page like that is a `List`, or keeps those controls out
 ///   of its rows. (A Mac `List`'s section footer is one line, cut short: a
 ///   longer note there goes in a row of its own.)
+/// - Two inspectors loop on a Mac: Settings beside a page that carries an
+///   inspector of its own, closed, spun at 100% CPU or threw whichever
+///   placement Settings had (Visor's Mac proof, 10 Nov 2026). An app with
+///   an inspector of its own keeps one pane for both.
 /// - On an iPad the inspector on the detail column took the detail's
 ///   navigation title and dimmed it; on the whole split view it doesn't.
 public enum SettingsInspectorPlacement: Sendable {
