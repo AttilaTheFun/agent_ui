@@ -7,7 +7,7 @@ common --registry=https://bcr.bazel.build
 
 # The tests built on Linux for a Mac with rules_applecross (MODULE.bazel),
 # on a builder that has Xcode 27.2's SDK archive (a --downloader_config to
-# an OS Server's files): `--config=apple_on_linux`. A Mac builds with its
+# Shireworks' files): `--config=apple_on_linux`. A Mac builds with its
 # own Xcode.
 common --enable_platform_specific_config
 common --incompatible_repo_env_ignores_action_env

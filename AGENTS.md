@@ -103,7 +103,7 @@ CI makes it, only when asked for by hand: CI's `workflow_dispatch` on main,
 the release as a draft once verify and the pins pass (pull requests and
 main's commits only build). The `verify` job runs
 `Tools/ci/hosted_proof.sh` on one of GitHub's own Macs (`xcode-27`, free
-for a public repository, leaving OS Server's macOS VMs to the agents:
+for a public repository, leaving Shireworks' macOS VMs to the agents:
 Logan, 5 Nov 2026). It runs `Tools/proof.sh` there, which builds the four
 example apps for the iPhone simulator and pictures each one's first screen,
 and writes the `proof` artifact in AttilaTheFun/reviews' format 2
