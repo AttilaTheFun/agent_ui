@@ -1,7 +1,7 @@
 #!/bin/bash
 # AgentUI's tests, built on Linux (Tools/ci/build_tests.sh, the build-tests
 # job), run on one of GitHub's own Macs (`xcode-27`, the test job), which a
-# public repository has for free, leaving OS Server's slots to CI and the
+# public repository has for free, leaving Shireworks' slots to CI and the
 # agents (Logan, 5 Nov 2026). Each bundle runs in the runner's desktop
 # session, where AgentUIPackageTests' windows draw, by Xcode's `xctest`
 # (`xcrun xctest`, as for any macOS logic test), with Xcode 27.2, the SDK

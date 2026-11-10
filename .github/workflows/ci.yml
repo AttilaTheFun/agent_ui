@@ -3,10 +3,10 @@ name: CI
 # (AttilaTheFun/reviews, docs/CI_POLICY.md; Logan, 7 Nov 2026):
 #
 # - A pull request runs one job, `container`, the required check: in one of
-#   OS Server's single-use Linux containers (agent_ui-jit), leasing nothing,
+#   Shireworks' single-use Linux containers (agent_ui-jit), leasing nothing,
 #   it checks the rules and builds the package and its tests on Linux as
 #   macOS bundles (Xcode 27.2's SDK, the Swift 6 mode with warnings as
-#   errors). Its Bazel reads OS Server's cache and never writes it. A pull
+#   errors). Its Bazel reads Shireworks' cache and never writes it. A pull
 #   request of documentation alone checks the rules and stops there. A
 #   newer push cancels its run. A fork's pull request runs nothing here: no
 #   self-hosted runner ever runs a fork's code.
@@ -26,7 +26,7 @@ name: CI
 #   the tag's version.
 #
 # The policy's verify leases a Mac; AgentUI's runs on GitHub's own
-# (`xcode-27`), free for a public repository, leaving OS Server's Macs to
+# (`xcode-27`), free for a public repository, leaving Shireworks' Macs to
 # the agents (Logan, 5 Nov 2026).
 on:
   pull_request:
@@ -103,7 +103,7 @@ jobs:
 
   # ---- main ----------------------------------------------------------------
 
-  # The cache's one writer (OS Server's `ci.populate` grants this job the
+  # The cache's one writer (Shireworks' `ci.populate` grants this job the
   # write): the merged tree built as a pull request's container job builds
   # it. No tests, nothing published.
   populate:
