@@ -25,7 +25,8 @@
 ///   placement, Settings opened with either). The same rows in a `List`
 ///   were still, with Settings closed and open (Applications, 9 Nov 2026).
 ///   On a Mac, a page like that is a `List`, or keeps those controls out
-///   of its rows.
+///   of its rows. (A Mac `List`'s section footer is one line, cut short: a
+///   longer note there goes in a row of its own.)
 /// - On an iPad the inspector on the detail column took the detail's
 ///   navigation title and dimmed it; on the whole split view it doesn't.
 public enum SettingsInspectorPlacement: Sendable {
