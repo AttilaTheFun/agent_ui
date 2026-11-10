@@ -13,6 +13,8 @@ import SwiftUI
 @Observable
 final class RowGutters {
     var trailing: CGFloat = 0
+    /// The experiment's switch.
+    static let off = true
 
     /// A row's whole width (whichever row last changed size: a list lays
     /// out only the rows on screen) and the composer bar's.
@@ -25,7 +27,10 @@ final class RowGutters {
 
     /// Whole points, and only a change written.
     private func measure() {
-        guard row > 0, bar > 0 else { return }
+        // Experiment (Visor's Mac proof, 10 Nov 2026): no trailing room
+        // measured, to see whether this write in layout is what sends a
+        // squeezed chat beside an inspector round.
+        guard !Self.off, row > 0, bar > 0 else { return }
         let trailing = max(0, (bar - row).rounded())
         if trailing != self.trailing { self.trailing = trailing }
     }
