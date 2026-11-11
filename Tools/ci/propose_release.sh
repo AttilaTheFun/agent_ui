@@ -115,6 +115,9 @@ with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as made:
     for top, _, files in os.walk(source):
         for name in sorted(files):
             path = os.path.join(top, name)
+            # The comparison goes beside proof.zip, not in it.
+            if os.path.relpath(path, source) == "proof-diff.json":
+                continue
             made.write(path, os.path.relpath(path, source))
 PY
     github "$api/releases/$made/assets?per_page=100" > "$work/assets.json"
@@ -125,4 +128,14 @@ print(next((str(a["id"]) for a in json.load(open(sys.argv[1])) if a["name"] == "
     github -X POST -H 'Content-Type: application/zip' --data-binary @"$work/proof.zip" \
         "$uploads/releases/$made/assets?name=proof.zip" > /dev/null
     echo "proof.zip attached to the draft of $tag ($(wc -c < "$work/proof.zip" | tr -d ' ') bytes)"
+    # Its comparison with the prior release's (proof-diff.json, which verify
+    # made), beside it; one there already is replaced.
+    if [ -f "$proof/proof-diff.json" ]; then
+        old="$(python3 -I -c 'import json, sys
+print(next((str(a["id"]) for a in json.load(open(sys.argv[1])) if a["name"] == "proof-diff.json"), ""))' "$work/assets.json")"
+        [ -z "$old" ] || github -X DELETE "$api/releases/assets/$old" > /dev/null
+        github -X POST -H 'Content-Type: application/json' --data-binary @"$proof/proof-diff.json" \
+            "$uploads/releases/$made/assets?name=proof-diff.json" > /dev/null
+        echo "proof-diff.json attached to the draft of $tag"
+    fi
 fi
