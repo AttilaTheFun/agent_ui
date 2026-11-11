@@ -184,6 +184,16 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: Tools/ci/hosted_proof.sh --proof "$RUNNER_TEMP/proof" --tests "$RUNNER_TEMP/test-logs" ${VERSION:+--version "$VERSION"}
+      # The proof's comparison with the prior release's, made once and kept
+      # beside proof.json (proof-diff.json; AttilaTheFun/reviews'
+      # docs/PROOF_FORMAT.md): Reviews shows it at once. Never fails the job.
+      - name: The proof's comparison
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f "$RUNNER_TEMP/proof/proof.json" ] || exit 0
+          python3 -I Tools/ci/proof_diff.py make "$RUNNER_TEMP/proof" || echo "::warning::the proof's comparison wasn't made"
       # The proof whether the apps came up or not: a broken screen is what it's for.
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
