@@ -57,6 +57,29 @@ final class LayoutRegressionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(offered, whole - 1, "offered less, the message keeps every line")
     }
 
+    /// A table is as tall when offered the height it was measured at as it
+    /// said it was. A list measures a row offered no height and then lays
+    /// it out in the height it got; the grid, offered a height, wrapped a
+    /// cell onto more lines than it was measured with, and on a Mac, between
+    /// some widths, the message drew over the rows above and below it
+    /// (Visor 0.49.2, 11 Nov 2026).
+    func testATableIsTheHeightItWasMeasuredAt() {
+        let table = """
+        | Area | Before | After |
+        |---|---|---|
+        | Mailbox | visor_server, beside the records | visor_agent, with its tests |
+        | Session records | one file per topic in the server | the same files, moved whole |
+        | Usage tally | computed on every poll | kept as the events arrive |
+        """
+        var differing: [String] = []
+        for width in stride(from: CGFloat(300), through: 700, by: 4) {
+            let measured = size(of: MarkdownText(table), width: width).height
+            let placed = size(of: MarkdownText(table), width: width, height: measured).height
+            if abs(placed - measured) > 0.5 { differing.append("\(Int(width)): \(measured) → \(placed)") }
+        }
+        XCTAssertEqual(differing, [], "offered its own height, the table is that tall at every width")
+    }
+
     /// A code block's line longer than the width wraps within it (a
     /// connection code is one long word), rather than running off the side
     /// to be scrolled to.

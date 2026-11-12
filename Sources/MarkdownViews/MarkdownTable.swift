@@ -22,6 +22,13 @@ struct MarkdownTable: View {
             }
         }
         .padding(.vertical, 2)
+        // As tall as it is at its width, whatever height it is offered.
+        // Apple's grid, offered a height, shares its width among the
+        // columns differently from when it is measured (offered none): a
+        // cell wraps onto a line or two more than it was measured with,
+        // and a list row, measured short, drew the message over the rows
+        // above and below it (on a Mac, between some widths).
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder private func cells(_ cells: [String], bold: Bool) -> some View {
