@@ -17,6 +17,20 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
     let sidebar: Sidebar
     let detail: Detail
     let inspector: Inspector
+    #if !os(macOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
+
+    /// Whether the columns show side by side (`splitViewColumnsSideBySide`):
+    /// a Mac's always do; elsewhere, unless the width is compact, where the
+    /// split view collapses into a stack.
+    private var sideBySide: Bool {
+        #if os(macOS)
+        true
+        #else
+        sizeClass != .compact
+        #endif
+    }
 
     /// - Parameters:
     ///   - compact: a phone's single column, where details are a sheet.
@@ -62,6 +76,7 @@ public struct SplitView<Sidebar: View, Detail: View, Inspector: View>: View {
             detail.softTopEdge()
         }
         .navigationSplitViewStyle(.balanced)
+        .environment(\.splitViewColumnsSideBySide, sideBySide)
     }
 }
 
