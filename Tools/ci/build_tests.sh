@@ -2,9 +2,9 @@
 # AgentUI's tests (the package's two test targets, Swift 6 mode, warnings as
 # errors), built as macos_unit_test bundles (MODULE.bazel, BUILD.bazel) for
 # one of GitHub's own Macs to run (Tools/ci/hosted_tests.sh, the test job).
-# CI builds them on GitHub's `xcode-27` Macs with the Mac's own Xcode (27.2
-# where the image has it), Bazel's caches in GitHub's (the workflow's
-# actions/cache), nothing of Shireworks'. On Linux they build as before,
+# CI builds them at release verification alone (the build-tests job), on
+# one of GitHub's `xcode-27` Macs with the Mac's own Xcode (27.2 where the
+# image has it), nothing of Shireworks'. On Linux they build as before,
 # with rules_applecross and Xcode 27.2's SDK archive from Shireworks' files
 # (`--config=apple_on_linux`), for an agent's container.
 #
