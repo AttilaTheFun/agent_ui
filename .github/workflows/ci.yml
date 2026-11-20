@@ -2,16 +2,20 @@ name: CI
 # AgentUI's CI, as Reviews' policy for Logan's protected repositories has it
 # (AttilaTheFun/reviews, docs/CI_POLICY.md; Logan, 7 Nov 2026):
 #
-# - A pull request runs one job, `container`, the required check: in one of
-#   Shireworks' single-use Linux containers (agent_ui-jit), leasing nothing,
-#   it checks the rules and builds the package and its tests on Linux as
-#   macOS bundles (Xcode 27.2's SDK, the Swift 6 mode with warnings as
-#   errors). Its Bazel reads Shireworks' cache and never writes it. A pull
-#   request of documentation alone checks the rules and stops there. A
-#   newer push cancels its run. A fork's pull request runs nothing here: no
-#   self-hosted runner ever runs a fork's code.
-# - Each commit on main runs `populate`: the same build of the merged tree,
-#   cache-only, the one job that writes the cache.
+# Every job runs on GitHub's own standard runners, as every public
+# repository's does (Logan, 15 Nov 2026): nothing of Shireworks' at run
+# time, no runner of its. Pull requests and main's commits run on GitHub's
+# Linux runners alone; Apple's targets build only at release verification,
+# on GitHub's `xcode-27` Macs (Logan, 13 Nov 2026: "i don't want to run
+# apple runners on every pr just release verification as they will be the
+# bottleneck"). Nothing here is signed and no secret is used: the job's own
+# token makes the draft.
+#
+# - A pull request runs one job, `container`, the required check, on
+#   `ubuntu-24.04`: it checks the rules. Every target imports SwiftUI, so
+#   nothing of the package builds on stock Linux: the build and the tests
+#   are verify's. A newer push cancels its run. A fork's pull request runs
+#   it too, with no secret. Each commit on main runs it as well.
 # - What needs a Mac runs only by hand (workflow_dispatch on main, `run`):
 #   - `verify`: the tests on one of GitHub's own Macs, then the proof (the
 #     demo apps' first screens, compared with the pictures kept at the
@@ -26,8 +30,7 @@ name: CI
 #   the tag's version.
 #
 # The policy's verify leases a Mac; AgentUI's runs on GitHub's own
-# (`xcode-27`), free for a public repository, leaving Shireworks' Macs to
-# the agents (Logan, 5 Nov 2026).
+# (`xcode-27`), free for a public repository (Logan, 5 Nov 2026).
 on:
   pull_request:
   push:
@@ -67,64 +70,30 @@ jobs:
   # ---- Pull requests -------------------------------------------------------
 
   container:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, agent_ui-jit]
-    timeout-minutes: 45
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-      # Whether it changes anything but documentation (docs/, .notes/,
-      # Markdown).
-      - id: changes
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          files="$(git diff --name-only "$BASE" HEAD)"
-          echo "$files"
-          if printf '%s\n' "$files" | awk '!/^([Dd]ocs\/|\.notes\/)|\.md$/ { code = 1 } END { exit !code }'; then code=true; else code=false; fi
-          echo "code=$code" >> "$GITHUB_OUTPUT"
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       # The rules of AGENTS.md that must hold (Tools/check_rules.py): no
       # unchecked concurrency, no dependencies, and in Sources/ no Combine
       # or CoreGraphics, the Foundation other SwiftUIs' hosts lack only
       # behind an Apple platform's #if, one type per file.
       - name: Rules
         run: python3 Tools/check_rules.py
-      # The cache is read here, never written: populate alone writes it.
-      - name: The cache, read only
-        if: steps.changes.outputs.code == 'true'
-        run: echo 'build --noremote_upload_local_results' >> ~/.bazelrc
-      # The package and its tests built as macOS bundles
-      # (Tools/ci/build_tests.sh), which only verify runs.
-      - name: Built
-        if: steps.changes.outputs.code == 'true'
-        run: Tools/ci/build_tests.sh "$RUNNER_TEMP/bundles"
-
-  # ---- main ----------------------------------------------------------------
-
-  # The cache's one writer (Shireworks' `ci.populate` grants this job the
-  # write): the merged tree built as a pull request's container job builds
-  # it. No tests, nothing published.
-  populate:
-    if: github.event_name == 'push'
-    runs-on: [self-hosted, agent_ui-jit]
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - run: Tools/ci/build_tests.sh "$RUNNER_TEMP/bundles"
 
   # ---- By hand: verify -----------------------------------------------------
 
-  # The tests, built on Linux as macOS bundles (Tools/ci/build_tests.sh),
-  # then run on one of GitHub's Macs (test).
+  # The tests, built as macOS bundles on one of GitHub's Macs with its own
+  # Xcode (Tools/ci/build_tests.sh), then run on another (test).
   build-tests:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, agent_ui-jit]
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - run: echo 'build --noremote_upload_local_results' >> ~/.bazelrc
       - run: Tools/ci/build_tests.sh "$RUNNER_TEMP/bundles"
       - uses: actions/upload-artifact@v4
         with:
@@ -214,7 +183,7 @@ jobs:
   # (Tools/released_pins.sh).
   pins:
     if: github.event_name == 'workflow_dispatch' && inputs.run == 'release'
-    runs-on: [self-hosted, agent_ui-jit-small]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -226,7 +195,7 @@ jobs:
     if: >-
       always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
       inputs.run == 'release' && needs.verify.result == 'success' && needs.pins.result == 'success'
-    runs-on: [self-hosted, agent_ui-jit-small]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       # The draft release.
@@ -254,7 +223,7 @@ jobs:
   # and kept its proof). Nothing is built or published.
   release:
     if: github.event_name == 'release' && !github.event.release.prerelease && startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, agent_ui-jit-small]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5

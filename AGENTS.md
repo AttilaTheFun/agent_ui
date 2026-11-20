@@ -101,7 +101,8 @@ checked goes there too.
 CI makes it, only when asked for by hand: CI's `workflow_dispatch` on main,
 `run: verify` for a look, or `run: release` with a `version`, which proposes
 the release as a draft once verify and the pins pass (pull requests and
-main's commits only build). The `verify` job runs
+main's commits only check the rules, on GitHub's Linux runners: Apple's
+targets build at release verification alone). The `verify` job runs
 `Tools/ci/hosted_proof.sh` on one of GitHub's own Macs (`xcode-27`, free
 for a public repository, leaving Shireworks' macOS VMs to the agents:
 Logan, 5 Nov 2026). It runs `Tools/proof.sh` there, which builds the four
