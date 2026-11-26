@@ -4,8 +4,9 @@ import XCTest
 /// The hidden first rows' deadline (RevealDeadline), with the times given:
 /// a settle every 200 ms, as a slow device's thread had them, never let a
 /// settle run its 300 ms course, and the rows stayed hidden.
+@MainActor
 final class RevealDeadlineTests: XCTestCase {
-    private let start = ContinuousClock.now
+    nonisolated private let start = ContinuousClock.now
 
     private func at(_ milliseconds: Int) -> ContinuousClock.Instant {
         start + .milliseconds(milliseconds)
@@ -42,6 +43,26 @@ final class RevealDeadlineTests: XCTestCase {
         // The thread settling again later (rows caught up) arms nothing.
         XCTAssertNil(deadline.settle(at: at(2000)))
         XCTAssertNil(deadline.remaining(at: at(3000)))
+    }
+
+    func testFirstRowsWhileTheUserIsBusyAreDrawnByTheDeadline() {
+        let rows = [TranscriptMessage(id: "a", role: .user, text: "hi"), TranscriptMessage(id: "b", role: .assistant, text: "hello")]
+        // A thread just opened, the user busy (the room moving, a touch):
+        // its first rows go in at once rather than waiting, so the thread
+        // settles and the deadline is armed.
+        XCTAssertFalse(TranscriptView.waits(busy: true, sending: false, shown: [], revealed: false))
+        // Rows still hidden under the empty state don't wait either.
+        XCTAssertFalse(TranscriptView.waits(busy: true, sending: false, shown: rows, revealed: false))
+        var deadline = RevealDeadline()
+        XCTAssertEqual(deadline.settle(at: at(0)), .milliseconds(1500))
+        // The user stays busy and nothing else settles: drawn at 1.5 s all
+        // the same (the deadline asks nothing of the user).
+        XCTAssertFalse(deadline.isDue(at: at(1499)))
+        XCTAssertTrue(deadline.isDue(at: at(1500)))
+        // Once drawn, rows wait for a busy user as before, but never a send.
+        XCTAssertTrue(TranscriptView.waits(busy: true, sending: false, shown: rows, revealed: true))
+        XCTAssertFalse(TranscriptView.waits(busy: true, sending: true, shown: rows, revealed: true))
+        XCTAssertFalse(TranscriptView.waits(busy: false, sending: false, shown: rows, revealed: true))
     }
 
     func testMillisecondsForTheLog() {

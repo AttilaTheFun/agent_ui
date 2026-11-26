@@ -563,7 +563,7 @@ public struct TranscriptView: View {
         .onChange(of: messages) { _, new in
             logOften("messages", "messages changed: \(new.count) rows, last \(new.last?.id ?? "none"), moved "
                      + "\(new.last?.id != shown.last?.id), following \(following), settling \(stage.settling), "
-                     + "revealed \(revealed), user busy \(userBusy)")
+                     + "revealed \(revealed), user busy \(userBusy) (\(busyParts))")
             revealIfOverdue()
             // While the user scrolls, types or the keyboard moves, the rows
             // wait (the latest of them) and go in all at once a moment after
@@ -571,7 +571,7 @@ public struct TranscriptView: View {
             // send: what the user sends goes in at once, before the agent's
             // reply has begun — the draft that just emptied, or the
             // composer giving up its lines, is no reason to hold it.
-            if userBusy && !sending {
+            if Self.waits(busy: userBusy, sending: sending, shown: shown, revealed: revealed) {
                 stage.waiting = new
                 takeWhenQuiet(toBottom)
             } else {
@@ -582,6 +582,7 @@ public struct TranscriptView: View {
         }
         .onChange(of: typing, initial: true) { _, now in
             stage.typing = now
+            logOften("typing", "typing \(now)")
             if !now { takeWhenQuiet(toBottom) }
         }
         .onChange(of: following) { _, now in
@@ -589,6 +590,7 @@ public struct TranscriptView: View {
             tellViewport()
         }
         .onScrollPhaseChange { _, phase in
+            logOften("phase", "scroll phase \(phase): \(shown.count) rows, revealed \(revealed)")
             // The user's: a finger or a trackpad on the list, or its
             // coasting after; the thread's own scrolls animate.
             let user = phase == .tracking || phase == .interacting || phase == .decelerating
@@ -602,6 +604,24 @@ public struct TranscriptView: View {
     /// keyboard on its way (its room changed a moment ago).
     private var userBusy: Bool {
         stage.userScrolling || stage.typing || stage.roomMoved.map { ContinuousClock.now - $0 < .milliseconds(400) } ?? false
+    }
+
+    /// What makes the user busy, for the log.
+    private var busyParts: String {
+        let room = stage.roomMoved.map { "\(RevealDeadline.milliseconds(ContinuousClock.now - $0)) ms ago" } ?? "never"
+        return "scrolling \(stage.userScrolling), typing \(stage.typing), room moved \(room)"
+    }
+
+    /// Whether the app's rows wait for the user to leave the thread alone
+    /// (`busy`), rather than going in now. Never with a send, and never
+    /// while the thread shows no rows of its own (its first, or none, or
+    /// still hidden under the empty state): what they can't see can't move
+    /// under them. The first rows waited while the user was busy, which
+    /// they were from the moment a thread opened (Visor on a slow
+    /// simulator): nothing settled, so nothing armed the reveal's deadline,
+    /// and the rows stayed hidden for good.
+    static func waits(busy: Bool, sending: Bool, shown: [TranscriptMessage], revealed: Bool) -> Bool {
+        busy && !sending && revealed && !shown.isEmpty
     }
 
     /// How long the user leaves the thread alone before what waited goes in.
@@ -639,7 +659,9 @@ public struct TranscriptView: View {
         // they go in with the thread kept at its bottom, not
         // brought in from below.
         let appended = Self.appends(new, to: shown) && !stage.settling
-        if !following, !stage.settling {
+        // Not the first rows: there was nothing to read further up, and
+        // only the settling below draws them (its deadline included).
+        if !following, !stage.settling, !shown.isEmpty {
             // Read further up: the rows go in below, what is read
             // stays still (the list holds its top), and the pill
             // counts them.
@@ -720,6 +742,7 @@ public struct TranscriptView: View {
         // is the user's scroll: the thread is not taken to the bottom then.
         .onVisibleHeightChange {
             stage.roomMoved = .now
+            logOften("room", "room changed: \(shown.count) rows, revealed \(revealed), following \(following)")
             if following && !holdTop && !sending && !stage.userScrolling { withAnimation(.smooth(duration: 0.35)) { toBottom() } }
             takeWhenQuiet(toBottom)
         }
