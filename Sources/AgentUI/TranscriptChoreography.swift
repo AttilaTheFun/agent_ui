@@ -44,6 +44,13 @@ final class TranscriptChoreography {
     /// The viewport as last told (TranscriptViewport), not told again
     /// unchanged.
     var toldViewport: TranscriptViewport?
+    /// When the hidden first rows are drawn at the latest (RevealDeadline),
+    /// and the task that draws them then.
+    var deadline = RevealDeadline()
+    var deadlineEnds: Task<Void, Never>?
+    /// For the log: when each thing told often was last told, and how many
+    /// times it went untold since.
+    var logged: [String: (at: ContinuousClock.Instant, untold: Int)] = [:]
 
     /// What ends each: one of each at a time, so a second settling or a
     /// second arrival takes over from the first instead of being cut short
