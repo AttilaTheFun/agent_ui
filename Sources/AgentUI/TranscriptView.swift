@@ -201,7 +201,7 @@ public struct TranscriptView: View {
         stage.deadlineEnds?.cancel()
         stage.deadlineEnds = nil
         guard !revealed else { return }
-        let since = stage.deadline.armed.map { "\(RevealDeadline.milliseconds(.now - $0)) ms after the first settle" }
+        let since = stage.deadline.armed.map { "\(RevealDeadline.milliseconds(ContinuousClock.now - $0)) ms after the first settle" }
         TranscriptLog.info("reveal (\(why)): \(shown.count) rows, \(since ?? "no settle"), \(stage.deadline.settles) settles")
         stage.deadline.revealed()
         var still = Transaction()
