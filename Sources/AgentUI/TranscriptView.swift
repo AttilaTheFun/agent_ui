@@ -136,16 +136,22 @@ public struct TranscriptView: View {
 
     /// Keeps the thread on its last row while the list lays out its first
     /// rows: every height change in the next moment scrolls again, and a
-    /// last scroll when the moment is over.
-    private func settle(_ toBottom: @escaping () -> Void) {
+    /// last scroll when the moment is over. `why` is for the log.
+    private func settle(_ toBottom: @escaping () -> Void, why: String) {
         stage.settling = true
         stage.settlingEnds?.cancel()
+        // Each settle starts the moment again, so rows hidden until one
+        // runs its course are drawn by their deadline instead, armed by
+        // the first and left alone by the rest.
+        if !revealed { armDeadline() }
+        TranscriptLog.info("settle (\(why)): \(shown.count) rows, revealed \(revealed), settle \(stage.deadline.settles) "
+                           + "since the first, deadline in \(stage.deadline.remaining(at: .now).map(RevealDeadline.milliseconds) ?? 0) ms")
         stage.settlingEnds = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
             toBottom()
             // Drawn by now whatever the layout did.
-            reveal(after: 0)
+            reveal(after: 0, why: "settled")
             try? await Task.sleep(nanoseconds: 900_000_000)
             guard !Task.isCancelled else { return }
             toBottom()
@@ -157,17 +163,67 @@ public struct TranscriptView: View {
 
     /// Draws the rows once the scroll to their end has landed: a frame or
     /// two after the list laid them out (`after` nanoseconds).
-    private func reveal(after delay: UInt64 = 34_000_000) {
+    private func reveal(after delay: UInt64 = 34_000_000, why: String) {
         guard !revealed, stage.revealEnds == nil else { return }
         stage.revealEnds = Task { @MainActor in
             if delay > 0 { try? await Task.sleep(nanoseconds: delay) }
             guard !Task.isCancelled else { return }
-            var still = Transaction()
-            still.disablesAnimations = true
-            withTransaction(still) { revealed = true }
-            stage.revealEnds = nil
+            revealNow(why: why)
         }
     }
+
+    /// Arms the hidden rows' deadline at the first settle; a later one
+    /// leaves it, or draws the rows at once if it has passed and its task
+    /// has not run (settles coming faster than the main actor gets to it).
+    private func armDeadline() {
+        guard let wait = stage.deadline.settle(at: .now) else { return }
+        if wait == .zero { return revealNow(why: "deadline, overdue") }
+        guard stage.deadlineEnds == nil else { return }
+        stage.deadlineEnds = Task { @MainActor in
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled else { return }
+            revealNow(why: "deadline")
+        }
+    }
+
+    /// Draws the hidden rows if their deadline has passed and its task has
+    /// not run. Asked by what comes often (a settle, the content's height,
+    /// the app's rows), so whatever keeps the thread busy draws them too,
+    /// even while the main actor's timers lag behind.
+    private func revealIfOverdue() {
+        if !revealed, stage.deadline.isDue(at: .now) { revealNow(why: "deadline, overdue") }
+    }
+
+    /// Draws the rows now, still: no fade over the empty state.
+    private func revealNow(why: String) {
+        stage.revealEnds?.cancel()
+        stage.revealEnds = nil
+        stage.deadlineEnds?.cancel()
+        stage.deadlineEnds = nil
+        guard !revealed else { return }
+        let since = stage.deadline.armed.map { "\(RevealDeadline.milliseconds(.now - $0)) ms after the first settle" }
+        TranscriptLog.info("reveal (\(why)): \(shown.count) rows, \(since ?? "no settle"), \(stage.deadline.settles) settles")
+        stage.deadline.revealed()
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { revealed = true }
+    }
+
+    /// Tells the log `line` under `key` at most every `logGap`, saying how
+    /// many times it went untold since: what fires in a loop shows as one
+    /// line with a count, not a flood.
+    private func logOften(_ key: String, _ line: @autoclosure () -> String) {
+        let now = ContinuousClock.now
+        if let last = stage.logged[key], now - last.at < Self.logGap {
+            stage.logged[key]?.untold += 1
+            return
+        }
+        let untold = stage.logged[key]?.untold ?? 0
+        stage.logged[key] = (now, 0)
+        TranscriptLog.info("\(line()) (\(untold) untold since the last)")
+    }
+
+    static let logGap: Duration = .milliseconds(250)
 
     /// Keeps `row` at the top while the page going in above it is laid out.
     /// A row come on screen or gone from it: the viewport told once the
@@ -467,15 +523,19 @@ public struct TranscriptView: View {
             }
         }
         .onAppear {
+            TranscriptLog.info("appear: \(shown.count) rows, revealed \(revealed)")
             toBottom()
-            if !shown.isEmpty { settle(toBottom) }
+            if !shown.isEmpty { settle(toBottom, why: "onAppear") }
         }
+        .onDisappear { TranscriptLog.info("disappear: \(shown.count) rows, revealed \(revealed)") }
         .onContentHeightChange {
+            revealIfOverdue()
             if stage.settling {
+                logOften("height", "content height changed while settling: \(shown.count) rows, revealed \(revealed)")
                 toBottom()
                 // The first rows are laid out: drawn once the scroll
                 // to their end has landed.
-                if !shown.isEmpty { reveal() }
+                if !shown.isEmpty { reveal(why: "laid out") }
             } else if let keptAtTop = stage.keptAtTop {
                 // As the list lays out the page: before the frame that
                 // would show the page's top.
@@ -501,6 +561,10 @@ public struct TranscriptView: View {
     private func arrivals(_ content: some View, toBottom: @escaping () -> Void) -> some View {
         content
         .onChange(of: messages) { _, new in
+            logOften("messages", "messages changed: \(new.count) rows, last \(new.last?.id ?? "none"), moved "
+                     + "\(new.last?.id != shown.last?.id), following \(following), settling \(stage.settling), "
+                     + "revealed \(revealed), user busy \(userBusy)")
+            revealIfOverdue()
             // While the user scrolls, types or the keyboard moves, the rows
             // wait (the latest of them) and go in all at once a moment after
             // they stop: the thread never moves under the user. Not with a
@@ -520,7 +584,10 @@ public struct TranscriptView: View {
             stage.typing = now
             if !now { takeWhenQuiet(toBottom) }
         }
-        .onChange(of: following) { _, _ in tellViewport() }
+        .onChange(of: following) { _, now in
+            logOften("following", "following \(now): settling \(stage.settling), held top \(holdTop)")
+            tellViewport()
+        }
         .onScrollPhaseChange { _, phase in
             // The user's: a finger or a trackpad on the list, or its
             // coasting after; the thread's own scrolls animate.
@@ -548,7 +615,7 @@ public struct TranscriptView: View {
         if stage.settling {
             stage.settlingEnds?.cancel()
             stage.settling = false
-            reveal(after: 0)
+            reveal(after: 0, why: "user scrolled")
         }
     }
 
@@ -634,7 +701,7 @@ public struct TranscriptView: View {
             // go of): the list's scroll measures rows it has only
             // estimated and stops short, so it goes again as they are
             // laid out.
-            if !new.isEmpty, first || (moved && following) { settle(toBottom) }
+            if !new.isEmpty, first || (moved && following) { settle(toBottom, why: first ? "first rows" : "moved while following") }
         }
     }
 

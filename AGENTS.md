@@ -84,6 +84,9 @@ checked goes there too.
   each other short. The delays themselves are measured against recordings
   (Visor's `tools/probes/frames/send_motion.sh`); do not change one
   without measuring again.
+  The one exception is the hidden first rows' deadline
+  (`RevealDeadline`): armed by a thread's first settle and left alone by
+  the rest, so a thread that keeps settling is still drawn.
 - Data and navigation belong to the app. Views take value types
   (`ConversationSummary`, `MessageItem`, `TranscriptMessage`) and bindings
   or closures; they do not own selection, presentation, or a data source.
