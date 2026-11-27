@@ -5,7 +5,8 @@ import SwiftUI
 enum InlineMarkdown {
     struct Span { var text: String; var bold = false; var italic = false; var code = false; var link = false; var strike = false }
 
-    static func text(_ markdown: String) -> Text {
+    /// Without `links`, a link is its words, plain (MarkdownPreview's).
+    static func text(_ markdown: String, links: Bool = true) -> Text {
         let spans = parse(markdown)
         var result: Text? = nil
         for span in spans {
@@ -17,7 +18,7 @@ enum InlineMarkdown {
             if span.code { piece = piece.monospaced() }
             if span.strike { piece = piece.strikethrough() }
             // Semibold, as MarkdownText's attributed links are.
-            if span.link { piece = piece.underline().fontWeight(.semibold).foregroundColor(.secondary) }
+            if span.link, links { piece = piece.underline().fontWeight(.semibold).foregroundColor(.secondary) }
             result = result.map { $0 + piece } ?? piece
         }
         return result ?? Text("")

@@ -10,6 +10,7 @@ enum MarkdownCache {
     static let limit = 2000
     private static var blocks: [String: [MarkdownBlock]] = [:]
     private static var inline: [String: Text] = [:]
+    private static var previews: [String: Text] = [:]
 
     /// The text's blocks, split once.
     static func blocks(_ text: String) -> [MarkdownBlock] {
@@ -18,6 +19,15 @@ enum MarkdownCache {
         if blocks.count >= limit { blocks.removeAll(keepingCapacity: true) }
         blocks[text] = split
         return split
+    }
+
+    /// The text as a preview (MarkdownPreview), made once by `make`.
+    static func preview(_ text: String, make: (String) -> Text) -> Text {
+        if let kept = previews[text] { return kept }
+        let made = make(text)
+        if previews.count >= limit { previews.removeAll(keepingCapacity: true) }
+        previews[text] = made
+        return made
     }
 
     /// The text's inline styles as `Text`, made once by `make`.

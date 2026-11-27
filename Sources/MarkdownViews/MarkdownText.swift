@@ -104,22 +104,28 @@ public struct MarkdownText: View {
     /// AttributedString; the portable one gets styled `Text` runs from a
     /// small parser of the same inline syntax.
     private func inline(_ text: String) -> Text {
-        MarkdownCache.inline(text, make: Self.styled)
+        MarkdownCache.inline(text) { Self.styled($0, links: true) }
     }
 
-    private static func styled(_ text: String) -> Text {
+    /// Inline markdown as styled text; without `links`, a link is its
+    /// words, plain, with nothing to follow (MarkdownPreview's).
+    static func styled(_ text: String, links: Bool) -> Text {
         #if canImport(UIKit) || canImport(AppKit)
         if var attributed = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
             for run in attributed.runs where run.link != nil {
-                attributed[run.range].foregroundColor = .secondary
-                attributed[run.range].underlineStyle = .single
-                attributed[run.range].font = .body.weight(.semibold)
+                if links {
+                    attributed[run.range].foregroundColor = .secondary
+                    attributed[run.range].underlineStyle = .single
+                    attributed[run.range].font = .body.weight(.semibold)
+                } else {
+                    attributed[run.range].link = nil
+                }
             }
             return Text(attributed)
         }
         return Text(text)
         #else
-        return InlineMarkdown.text(text)
+        return InlineMarkdown.text(text, links: links)
         #endif
     }
 }
