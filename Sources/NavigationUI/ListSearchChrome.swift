@@ -61,6 +61,16 @@ public struct ListSearchChrome<Content: View>: View {
         // compose stays a toolbar item.
         content
             .safeAreaInset(edge: .top) { searchField.padding(.horizontal, 12).padding(.bottom, 8) }
+            // ⌘F types into the search, as Find does in the Mac's own lists
+            // (Logan, 2026-11-26: Shireworks' Issues had none): a button
+            // drawn as nothing, since a hidden one takes no shortcut.
+            .background {
+                Button("Search") { searching = true }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
             .toolbar {
                 if let compose {
                     ToolbarItem(placement: .primaryAction) {
