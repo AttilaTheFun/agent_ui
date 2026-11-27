@@ -29,7 +29,9 @@ reimplementation of the same API, so one source builds everywhere.
   quotes, fenced code that wraps, and tables. AgentUI's messages use it,
   and any app can (a pull request's description, release notes);
   AgentUI re-exports it. Selecting its words is the caller's
-  (`.textSelection`).
+  (`.textSelection`). `MarkdownPreview` is the same reading as one
+  text for a list's row: inline styles kept, blocks flattened to their
+  words a line each, links plain.
 - **NavigationUI** — `SplitView` (sidebar, detail, inspector; the app's
   column bindings), `InspectorView` (a pane's frame with the X),
   `adaptiveInspector(isPresented:compact:)` (an inspector, or a sheet on a

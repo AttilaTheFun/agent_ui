@@ -224,3 +224,24 @@ final class PictureTests: XCTestCase {
         XCTAssertFalse(TranscriptView.isPicture("/x.d/noextension"))
     }
 }
+
+final class MarkdownPreviewTests: XCTestCase {
+    /// A preview is the message's words a line each: a heading's, each
+    /// list item's without its marker, a quote's, a table's cells, a code
+    /// block's lines as code; blank lines and the markers go.
+    func testBlocksFlattenToTheirWords() {
+        let pieces = MarkdownPreview.pieces(MarkdownBlocks.split(
+            "## Results\n\nAll **green**.\n\n- one\n2. two\n\n> quoted *words*\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```swift\nlet x = 1\n```"))
+        XCTAssertEqual(pieces, [
+            .inline("Results"), .inline("All **green**."), .inline("one"), .inline("two"), .inline("quoted *words*"),
+            .inline("a  b"), .inline("1  2"), .code("let x = 1"),
+        ])
+    }
+
+    /// Its inline markdown is the thread's: styled words, a link by its
+    /// words alone.
+    func testInlineMarksAreTheThreads() {
+        XCTAssertEqual(InlineMarkdown.parse("See [the PR](https://example.com/1) and **this** `code`").map(\.text),
+                       ["See ", "the PR", " and ", "this", " ", "code"])
+    }
+}
