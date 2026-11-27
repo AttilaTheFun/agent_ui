@@ -50,8 +50,11 @@ public struct ToolCallsSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             }
         }
+        // Opened at 520 points, and no wider at its least than a window
+        // of an app's narrowest content (320: an iPad app's narrowest in
+        // Stage Manager).
         #if os(macOS)
-        .frame(minWidth: 520, minHeight: 420)
+        .frame(minWidth: 320, idealWidth: 520, minHeight: 420)
         #endif
     }
 }

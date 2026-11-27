@@ -32,7 +32,10 @@ struct ComposerSuggestions: View {
                     SuggestionList(suggestions: suggestions, pick: pick)
                         .padding(.vertical, 6)
                         .padding(.horizontal, 6)
-                        .frame(width: 332)
+                        // 332 points, as it is measured, and narrower
+                        // where the window is (an iPad app 320 points
+                        // wide in Stage Manager), rather than cut off.
+                        .frame(minWidth: 260, idealWidth: 332, maxWidth: 332)
                         .presentationCompactAdaptation(.popover)
                 }
         } else if !suggestions.isEmpty {
