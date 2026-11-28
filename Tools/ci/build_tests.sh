@@ -1,12 +1,14 @@
 #!/bin/bash
 # AgentUI's tests (the package's two test targets, Swift 6 mode, warnings as
 # errors), built as macos_unit_test bundles (MODULE.bazel, BUILD.bazel) for
-# one of GitHub's own Macs to run (Tools/ci/hosted_tests.sh, the test job).
+# a Mac to run (Tools/ci/hosted_tests.sh, the test job, in a macOS VM).
 # CI builds them at release verification alone (the build-tests job), on
-# one of GitHub's `xcode-27` Macs with the Mac's own Xcode (27.2 where the
-# image has it), nothing of Shireworks'. On Linux they build as before,
-# with rules_applecross and Xcode 27.2's SDK archive from Shireworks' files
-# (`--config=apple_on_linux`), for an agent's container.
+# a Nimbus runner (`[self-hosted, agent_ui-ci]`, a Linux container: no
+# paid GitHub runner, Logan, 27 Nov 2026) with rules_applecross
+# (`--config=apple_on_linux`) and Xcode 27.2's SDK archive from Nimbus'
+# files (`nimbus job bazel-config`'s downloader config); an agent's
+# container takes it from Shireworks' files. A Mac builds with its own
+# Xcode (27.2 where it has it).
 #
 #   Tools/ci/build_tests.sh <out>
 #
@@ -35,6 +37,13 @@ if [ "$(uname -s)" = Darwin ]; then
     xcodebuild -version | head -1
     flags=""
     echo "This Mac: $(sysctl -n hw.ncpu) CPUs, $(($(sysctl -n hw.memsize) / 1073741824)) GB memory"
+elif [ -x /opt/nimbus/bin/nimbus ]; then
+    # A Nimbus runner: its downloader config (the SDK archive and the
+    # ported tools to Nimbus' files), beside the bazelrc it prints. Bazel
+    # reads Nimbus' cache through the runner's own ~/.bazelrc.
+    rc="$(cd "$ROOT" && /opt/nimbus/bin/nimbus job bazel-config)"
+    flags="--config=apple_on_linux --downloader_config=$(cd "$ROOT" && cd "$(dirname "$rc")" && pwd)/downloader.cfg"
+    echo "This container: $(nproc) CPUs, $(awk '/MemTotal/ { printf "%.1f GB", $2 / 1048576 }' /proc/meminfo 2> /dev/null) memory"
 else
     # The SDK archive from Shireworks' files, at the address its API gives
     # (Tools/ci/shireworks.sh, copied from AttilaTheFun/shireworks).

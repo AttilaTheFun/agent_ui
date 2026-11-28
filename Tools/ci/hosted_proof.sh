@@ -1,7 +1,7 @@
 #!/bin/bash
-# AgentUI's proof, on one of GitHub's own Macs (`xcode-27`: Xcode 27.2 and
-# its iOS simulators), which a public repository has for free, leaving OS
-# Server's macOS VMs to the agents (Logan, 5 Nov 2026): the four demo apps
+# AgentUI's proof, in a macOS VM (Xcode 27.2 and its iOS simulators) that
+# the verify job's Nimbus runner leases (Tools/ci/mac_vm.sh: no paid GitHub
+# runner, Logan, 27 Nov 2026), the checkout put there with no .git: the four demo apps
 # built and pictured by Tools/proof.sh, in AttilaTheFun/reviews' proof format
 # 2 (docs/PROOF_FORMAT.md). Nothing is compared here: Reviews compares a
 # release's proof with the prior release's, item by item, by id (Logan, 8 Nov
@@ -25,6 +25,8 @@
 # comes back.
 #
 #   DEVELOPER_DIR  the Xcode (default: Xcode 27.2 where the image has it)
+#   PROOF_COMMIT   the commit it is a proof of (default: the checkout's HEAD;
+#                  a VM's copy of the tree has no git)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 me="$(basename "$0")"
@@ -48,7 +50,7 @@ if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode_27.2.app ]; then
     export DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer
 fi
 
-commit="$(git -C "$ROOT" rev-parse HEAD)"
+commit="${PROOF_COMMIT:-$(git -C "$ROOT" rev-parse HEAD)}"
 [ -n "$version" ] || version="$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v[0-9]*' 2> /dev/null | sed 's/^v//')"
 
 work="$(mktemp -d)"

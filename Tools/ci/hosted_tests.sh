@@ -1,7 +1,8 @@
 #!/bin/bash
 # AgentUI's tests, built as macOS bundles (Tools/ci/build_tests.sh, the
-# build-tests job), run on one of GitHub's own Macs (`xcode-27`, the test
-# job), which a public repository has for free (Logan, 5 Nov 2026). Each bundle runs in the runner's desktop
+# build-tests job, on a Nimbus runner), run in a macOS VM that the test job's
+# Nimbus runner leases (Tools/ci/mac_vm.sh --desktop: no paid GitHub runner,
+# Logan, 27 Nov 2026). Each bundle runs in the VM's desktop
 # session, where AgentUIPackageTests' windows draw, by Xcode's `xctest`
 # (`xcrun xctest`, as for any macOS logic test), with Xcode 27.2, the SDK
 # they are built with, where the image has it.
