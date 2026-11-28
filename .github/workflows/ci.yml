@@ -2,14 +2,20 @@ name: CI
 # AgentUI's CI, as Reviews' policy for Logan's protected repositories has it
 # (AttilaTheFun/reviews, docs/CI_POLICY.md; Logan, 7 Nov 2026):
 #
-# Every job runs on GitHub's own standard runners, as every public
-# repository's does (Logan, 15 Nov 2026): nothing of Shireworks' at run
-# time, no runner of its. Pull requests and main's commits run on GitHub's
-# Linux runners alone; Apple's targets build only at release verification,
-# on GitHub's `xcode-27` Macs (Logan, 13 Nov 2026: "i don't want to run
-# apple runners on every pr just release verification as they will be the
-# bottleneck"). Nothing here is signed and no secret is used: the job's own
-# token makes the draft.
+# Pull requests and main's commits run on GitHub's free Linux runners alone
+# (Logan, 15 Nov 2026). Apple's targets build only at release verification
+# (Logan, 13 Nov 2026: "i don't want to run apple runners on every pr just
+# release verification as they will be the bottleneck"), on Nimbus'
+# self-hosted runners, not GitHub's paid `xcode-27` (Logan, 27 Nov 2026:
+# no paid runner): single-use Linux containers (`[self-hosted,
+# agent_ui-ci]`, Nimbus' ci-github controller) that build the tests'
+# bundles with rules_applecross and Xcode 27.2's SDKs from Nimbus' files,
+# and lease a macOS VM (Tools/ci/mac_vm.sh: xcode_27_2) for what needs
+# macOS, the tests' run and the proof. Those run on a dispatch alone, never
+# a pull request's or a fork's code: Logan takes the VM's open network for
+# them until Nimbus' VMs have the containers' egress rule. Nothing here is
+# signed and no secret is used; nothing secret goes in a VM: the job's own
+# token makes the draft, on GitHub's Ubuntu.
 #
 # - A pull request runs one job, `container`, the required check, on
 #   `ubuntu-24.04`: it checks the rules. Every target imports SwiftUI, so
@@ -29,8 +35,7 @@ name: CI
 #   `release` checks the commit is on main and was verified. Consumers pin
 #   the tag's version.
 #
-# The policy's verify leases a Mac; AgentUI's runs on GitHub's own
-# (`xcode-27`), free for a public repository (Logan, 5 Nov 2026).
+# The policy's verify leases a Mac; AgentUI's leases Nimbus' (above).
 on:
   pull_request:
   push:
@@ -86,11 +91,11 @@ jobs:
 
   # ---- By hand: verify -----------------------------------------------------
 
-  # The tests, built as macOS bundles on one of GitHub's Macs with its own
-  # Xcode (Tools/ci/build_tests.sh), then run on another (test).
+  # The tests, built as macOS bundles on a Nimbus runner with rules_applecross
+  # (Tools/ci/build_tests.sh), then run in a macOS VM (test).
   build-tests:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: xcode-27
+    runs-on: [self-hosted, agent_ui-ci]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -102,19 +107,26 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The bundles in an xcode-27 runner's desktop session, where
-  # AgentUIPackageTests' windows draw (Tools/ci/hosted_tests.sh).
+  # The bundles in the desktop session of a macOS VM that a Nimbus runner
+  # leases (Tools/ci/mac_vm.sh), where AgentUIPackageTests' windows draw
+  # (Tools/ci/hosted_tests.sh); the logs come back. On a dispatch alone
+  # (above).
   test:
     needs: build-tests
-    runs-on: xcode-27
-    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, agent_ui-ci]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: test-bundles
           path: ${{ runner.temp }}/bundles
-      - run: Tools/ci/hosted_tests.sh "$RUNNER_TEMP/bundles" --logs "$RUNNER_TEMP/test-logs"
+      - name: The tests, in a macOS VM
+        run: >-
+          Tools/ci/mac_vm.sh --desktop --put "$RUNNER_TEMP/bundles" --put Tools/ci/hosted_tests.sh
+          --get test-logs --out "$RUNNER_TEMP"
+          -- ./hosted_tests.sh bundles --logs test-logs
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
@@ -122,19 +134,20 @@ jobs:
           path: ${{ runner.temp }}/test-logs
           retention-days: 7
 
-  # The proof: the demo apps' first screens, made on one of GitHub's Macs,
-  # and the tests' counts, in AttilaTheFun/reviews' proof format 2
+  # The proof: the demo apps' first screens, made in a macOS VM that a
+  # Nimbus runner leases (Tools/ci/mac_vm.sh, the checkout in it), and the
+  # tests' counts, in AttilaTheFun/reviews' proof format 2
   # (Tools/ci/hosted_proof.sh), kept flat as the `proof` artifact. Nothing is
   # compared here: Reviews compares a release's proof with the prior
   # release's, item by item (Logan, 8 Nov 2026), and a release's proposal
   # attaches it to the draft as proof.zip. It passes only when the tests did
   # too: its success is the commit verified, which propose and the release
-  # job ask for.
+  # job ask for. On a dispatch alone (above).
   verify:
     needs: test
     if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
-    runs-on: xcode-27
-    timeout-minutes: 60
+    runs-on: [self-hosted, agent_ui-ci]
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:
@@ -148,11 +161,19 @@ jobs:
         with:
           name: test-logs
           path: ${{ runner.temp }}/test-logs
-      # Untrusted text reaches the shell through env, never ${{ }} in run.
-      - name: The demo apps, built and pictured, and the proof
+      # What it is a proof of, from the checkout's git (the VM's copy has
+      # none). Untrusted text reaches the shell through env, never ${{ }} in run.
+      - name: The demo apps, built and pictured in a macOS VM, and the proof
         env:
           VERSION: ${{ inputs.version }}
-        run: Tools/ci/hosted_proof.sh --proof "$RUNNER_TEMP/proof" --tests "$RUNNER_TEMP/test-logs" ${VERSION:+--version "$VERSION"}
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-logs"
+          export PROOF_COMMIT="$GITHUB_SHA"
+          export PROOF_VERSION="${VERSION:-$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2> /dev/null | sed 's/^v//')}"
+          Tools/ci/mac_vm.sh --tree --put "$RUNNER_TEMP/test-logs" --minutes 90 \
+            --env PROOF_COMMIT --env PROOF_VERSION --env GITHUB_REPOSITORY --env GITHUB_RUN_ID \
+            --get proof --out "$RUNNER_TEMP" \
+            -- 'Tools/ci/hosted_proof.sh --proof proof --tests test-logs ${PROOF_VERSION:+--version "$PROOF_VERSION"}'
       # The proof's comparison with the prior release's, made once and kept
       # beside proof.json (proof-diff.json; AttilaTheFun/reviews'
       # docs/PROOF_FORMAT.md): Reviews shows it at once. Never fails the job.
