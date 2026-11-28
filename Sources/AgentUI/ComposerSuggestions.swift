@@ -14,6 +14,9 @@ struct ComposerSuggestions: View {
     @Binding var draft: String
     let suggest: (String) -> [AgentSuggestion]
     let room: CGFloat
+    /// How wide the composer is, within its margins. The popover is drawn
+    /// outside it, so nothing else keeps it narrower than the window.
+    let width: CGFloat
     let pick: (AgentSuggestion) -> Void
     /// The draft the popover was put away for.
     @State private var dismissed: String?
@@ -28,11 +31,7 @@ struct ComposerSuggestions: View {
                 .popover(isPresented: Binding(get: { !suggestions.isEmpty && dismissed != draft },
                                               set: { if !$0 { dismissed = draft } }),
                          attachmentAnchor: .point(.top), arrowEdge: .bottom) {
-                    // Clear of the popover's rounded corners.
-                    SuggestionList(suggestions: suggestions, pick: pick)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 6)
-                        .frame(width: 332)
+                    PopoverList(suggestions: suggestions, width: width, pick: pick)
                         .presentationCompactAdaptation(.popover)
                 }
         } else if !suggestions.isEmpty {
@@ -40,6 +39,25 @@ struct ComposerSuggestions: View {
                 .padding(.vertical, 4)
                 .frame(maxWidth: 360, alignment: .leading)
                 .modifier(SuggestionMenuBackground())
+        }
+    }
+
+    /// The popover's list: 332 pt wide, or the composer's width where that
+    /// is less. A window can be narrower than 332 (Stage Manager's
+    /// narrowest iPad window is 320), and a popover that wide was cut off
+    /// at its edges. The menu elsewhere is in the composer's overlay,
+    /// which already holds it to the composer's width.
+    struct PopoverList: View {
+        let suggestions: [AgentSuggestion]
+        let width: CGFloat
+        let pick: (AgentSuggestion) -> Void
+
+        var body: some View {
+            // Clear of the popover's rounded corners.
+            SuggestionList(suggestions: suggestions, pick: pick)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 6)
+                .frame(width: min(332, width))
         }
     }
 }
