@@ -52,6 +52,10 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
     /// How far down the window the box's top is: the room the suggestions'
     /// menu has above it.
     @State private var roomAbove: CGFloat = 400
+    /// How wide the composer is, within its margins: the most the
+    /// suggestions' popover takes. 332 until it is measured, the
+    /// popover's own width.
+    @State private var width: CGFloat = 332
     /// The words just sent, shown in the box, faint, while they are on
     /// their way.
     @State private var sentWords: String?
@@ -182,13 +186,14 @@ public struct AgentComposer<Controls: View, Attachments: View>: View {
         // keyboard up left them no room at all. The field keeps the
         // keyboard, so typing on narrows them.
         .overlay(alignment: .topLeading) {
-            ComposerSuggestions(draft: $draft, suggest: suggest, room: roomAbove, pick: { suggestion in
+            ComposerSuggestions(draft: $draft, suggest: suggest, room: roomAbove, width: width, pick: { suggestion in
                 pick(suggestion)
                 picked += 1
             })
             .alignmentGuide(.top) { $0[.bottom] + AgentComposerMetrics.gap }
         }
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { roomAbove = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         // One inset, whatever the keyboard is doing: the bar is attached
         // with `safeAreaInset(edge: .bottom)`, and SwiftUI moves the safe
         // area itself when a keyboard comes up. Watching UIKit's
